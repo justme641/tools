@@ -4,7 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>影音播放器</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#121212">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <style>
+    [hidden]{display:none !important}
     :root{--bg:#121212;--card:#1e1e1e;--text:#e0e0e0;--sub:#9ca3af;--line:#333;--field:#2a2a2a;--accent:#2563eb;--danger:#f87171;--hl:#26324d}
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; }
     body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
@@ -85,6 +92,7 @@
 <body>
 
   <h1>影音播放器 <small>v1.0</small></h1>
+  <button id="installBtn" class="btn-download" hidden style="margin-bottom:14px">📲 安裝到主畫面</button>
 
   <div class="container">
     <div class="input-group">
@@ -94,8 +102,9 @@
 
       <label class="small" style="margin-top: 5px;">貼上 YouTube 影片網址（或影音直連網址）：</label>
       <div style="display: flex; gap: 8px;">
-        <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=...">
+        <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;min-width:0">
         <button class="primary" id="loadUrl">載入播放</button>
+        <button id="clearUrl" title="清除網址">✕ 清除</button>
       </div>
 
       <div style="display: flex; gap: 8px; margin-top: 5px;">
@@ -150,39 +159,34 @@
   <nav class="tabs">
     <button data-tab="pl" class="on">🎵 播放清單</button>
     <button data-tab="pod">🎙 Podcast</button>
-    <button data-tab="bk">💾 備份／媒體庫</button>
+    <button data-tab="bk">⚙ 媒體庫／設定</button>
   </nav>
 
   <section id="tab-pl" class="container"><div id="plRoot"></div></section>
   <section id="tab-pod" class="container" hidden><div id="podRoot"></div></section>
 
   <section id="tab-bk" class="container" hidden>
-    <h3 style="margin-top:0">匯出</h3>
-    <p class="hint">把「主分類／次分類／播放清單」與「Podcast 訂閱」存成一個 JSON 檔。本地檔案只記錄檔名與大小，檔案本身留在各裝置的媒體庫。</p>
-    <button class="primary" id="exportBtn">⬇ 匯出備份檔</button>
-    <div class="hint" id="exportInfo"></div>
-
-    <h3>匯入</h3>
-    <div class="row"><input type="file" id="importFile" accept=".json,application/json" style="max-width:320px"></div>
-    <div class="row" style="margin-top:8px">
-      <label><input type="radio" name="imode" value="merge" checked> 合併（保留現有，加入備份內容）</label>
-      <label><input type="radio" name="imode" value="replace"> 取代（以備份檔覆蓋現有資料）</label>
-    </div>
-    <div style="margin-top:8px"><button id="importBtn">⬆ 匯入</button></div>
+    <h3 style="margin-top:0">媒體庫（存在這台裝置）</h3>
+    <div class="hint" id="libInfo"></div>
+    <div id="libBox"></div>
 
     <h3>網站預設清單</h3>
     <p class="hint">首次開啟時，會自動讀取與本頁同一個資料夾的 <code>mirror-data.json</code> 作為預設清單（只在這台裝置還沒有任何資料時自動載入一次）。之後也可以手動載入並合併：</p>
     <button id="remoteBtn">🌐 從網站載入／合併預設清單</button>
 
-    <h3>媒體庫（存在這台裝置）</h3>
-    <div class="hint" id="libInfo"></div>
-    <div id="libBox"></div>
+    <h3>安裝成 App</h3>
+    <ul class="hint">
+      <li>Android Chrome：選單 → 「安裝應用程式」或「加到主畫面」（若支援，頁面上方也會出現「📲 安裝到主畫面」按鈕）。</li>
+      <li>iPhone Safari：分享 → 「加入主畫面」。</li>
+      <li>安裝後會以獨立視窗開啟，頁面本身可離線開啟；YouTube 與 Podcast 仍需要網路。</li>
+    </ul>
 
     <h3>關於資料儲存</h3>
     <ul class="hint">
       <li>所有資料只存在「這台裝置的這個瀏覽器」，不會上傳到任何伺服器。</li>
-      <li>清除網站資料、換瀏覽器或換手機，資料就會消失，請定期匯出備份。</li>
-      <li>換新裝置時：匯入備份檔後，清單裡的本地檔案第一次播放會請你選一次檔案，之後就會記在那台裝置的媒體庫。</li>
+      <li>存入媒體庫的檔案是「複製一份」到瀏覽器，會額外占用這台裝置的儲存空間；不需要時可在上方刪除。</li>
+      <li>清除網站資料、換瀏覽器或換手機，資料就會消失，請定期到播放清單頁匯出備份。</li>
+      <li>匯入其他裝置的備份時，本地檔案（媒體庫）項目會自動略過；同一台裝置的備份則會完整還原。</li>
     </ul>
   </section>
 
@@ -200,10 +204,16 @@
         <li>功能擴充：新增自訂播放清單，可建立主分類與次分類，分類與項目皆可改名、刪除、調整順序，項目可移至其他次分類，並可連續播放整份清單。</li>
         <li>資料管理：新增匯出／匯入（合併或取代）備份檔；首次開啟自動讀取同資料夾的 mirror-data.json 作為預設清單，並可手動載入合併。</li>
         <li>功能擴充：新增 Podcast 訂閱清單（搜尋或貼上 RSS）、單集播放、加入播放清單，以及單集音訊下載（來源允許時直接下載，否則改開新分頁）。</li>
+        <li>清單分類：主分類與次分類新增「ALL」，每次開啟預設顯示全部清單，可跨分類瀏覽與連續播放；停在 ALL 時加入項目會詢問要放進哪個清單。</li>
+        <li>備份流程：匯出／匯入入口移到播放清單頁最上方，匯入時直接選擇「合併」或「取代」；匯入其他裝置的備份時，自動略過本地媒體庫項目。</li>
+        <li>Podcast：修正節目單集無法讀取的問題，改以 iTunes 單集資料為主，並加入多個 RSS 備援來源。</li>
+        <li>介面調整：載入播放按鈕旁新增「✕ 清除」按鈕。</li>
+        <li>PWA：新增 manifest 與 service worker，可安裝到主畫面，頁面本身可離線開啟。</li>
       </ul>
     </div>
   </div>
 
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
   <div class="toast" id="toast"></div>
 
 <script>
@@ -569,13 +579,56 @@ $('#loadUrl').onclick=loadFromInput;
 $('#ytUrl').addEventListener('keydown',e=>{if(e.key==='Enter')loadFromInput();});
 
 /* ---------- 播放清單 UI ---------- */
+const ALL='__all';
+const countOf=m=>m.subs.reduce((a,s)=>a+s.items.length,0);
+function entriesOf(mainId,subId){
+  const out=[];
+  db.mains.forEach(m=>{
+    if(mainId!==ALL&&m.id!==mainId)return;
+    m.subs.forEach(s=>{
+      if(subId!==ALL&&s.id!==subId)return;
+      s.items.forEach(it=>out.push({it,main:m,sub:s}));
+    });
+  });
+  return out;
+}
 function curSub(){
-  const m=db.mains.find(x=>x.id===ui.main);if(!m)return null;
-  return m.subs.find(s=>s.id===ui.sub)||null;
+  if(ui.main===ALL||ui.sub===ALL)return null;
+  const m=db.mains.find(x=>x.id===ui.main);
+  return m?(m.subs.find(s=>s.id===ui.sub)||null):null;
+}
+/* 目前停在 ALL 時，加入項目前詢問要放哪個清單 */
+function pickSub(){
+  const s=curSub();if(s)return Promise.resolve(s);
+  const all=db.mains.flatMap(m=>m.subs.map(sb=>({m,sb})));
+  if(!all.length){toast('請先建立主分類與次分類');return Promise.resolve(null);}
+  if(all.length===1)return Promise.resolve(all[0].sb);
+  return new Promise(res=>{
+    const dlg=h('dialog');const form=h('form',{method:'dialog'});
+    const sel=h('select',{style:'width:100%'},all.map((x,i)=>h('option',{value:i,text:x.m.name+' / '+x.sb.name})));
+    form.append(h('h3',{text:'加入哪個清單？'}),sel,h('div',{class:'row end',style:'margin-top:12px'},
+      h('button',{type:'button',onclick:()=>dlg.close('cancel'),text:'取消'}),
+      h('button',{type:'submit',class:'primary',value:'ok',text:'加入'})));
+    dlg.append(form);document.body.append(dlg);
+    dlg.addEventListener('close',()=>{const ok=dlg.returnValue==='ok';const v=Number(sel.value);dlg.remove();res(ok?all[v].sb:null);});
+    dlg.showModal();
+  });
+}
+function choiceBox(msg,opts){
+  return new Promise(res=>{
+    const dlg=h('dialog');const form=h('form',{method:'dialog'});
+    form.append(h('p',{text:msg}),h('div',{class:'row end',style:'margin-top:12px'},
+      h('button',{type:'button',onclick:()=>dlg.close('cancel'),text:'取消'}),
+      opts.map(o=>h('button',{type:'submit',class:o.primary?'primary':'',value:o.value,text:o.label}))));
+    dlg.append(form);document.body.append(dlg);
+    dlg.addEventListener('close',()=>{const v=dlg.returnValue;dlg.remove();res(opts.some(o=>o.value===v)?v:null);});
+    dlg.showModal();
+  });
 }
 function ib(icon,tip,fn,cls){return h('button',{class:'ib '+(cls||''),title:tip,'aria-label':tip,onclick:fn,text:icon});}
-function catBlock(label,list,sel,lab,onSelect,ops){
+function catBlock(label,list,sel,lab,onSelect,ops,allInfo){
   const chips=h('div',{class:'chips'});
+  if(allInfo)chips.append(h('button',{class:'chip'+(allInfo.on?' on':''),onclick:allInfo.pick,text:allInfo.label}));
   list.forEach(c=>chips.append(h('button',{class:'chip'+(sel&&c.id===sel.id?' on':''),onclick:()=>onSelect(c.id),text:lab(c)})));
   const bar=h('div',{class:'ops'},
     ops.add&&ib('＋','新增',ops.add),
@@ -587,56 +640,73 @@ function catBlock(label,list,sel,lab,onSelect,ops){
   return h('div',{class:'block'},h('div',{class:'bhead'},h('strong',{text:label}),bar),chips);
 }
 const badge=it=>it.type==='youtube'?'YT':it.type==='local'?'本地':'連結';
+function ioBlock(){
+  const stale=!db.lastExport?db.mains.some(m=>m.subs.some(s=>s.items.length)):(Date.now()-db.lastExport>30*864e5);
+  return h('div',{class:'block'},
+    h('div',{class:'bhead'},h('strong',{text:'清單備份'}),
+      h('div',{class:'ops'},
+        h('button',{onclick:exportData,text:'📤 匯出清單'}),
+        h('button',{onclick:()=>$('#importFile').click(),text:'📥 匯入清單'}))),
+    h('div',{class:'hint'+(stale?' warn':''),text:(db.lastExport?'上次匯出：'+new Date(db.lastExport).toLocaleString('zh-TW'):'尚未匯出過備份')+'。匯入到其他裝置時，本地檔案（媒體庫）項目會自動略過。'}));
+}
 function renderPL(){
   const root=$('#plRoot');root.replaceChildren();
-  const main=db.mains.find(m=>m.id===ui.main)||db.mains[0]||null;
-  ui.main=main?main.id:null;
-  const sub=main?(main.subs.find(s=>s.id===ui.sub)||main.subs[0]||null):null;
-  ui.sub=sub?sub.id:null;savePrefs();
+  if(!ui.main)ui.main=ALL;
+  let main=ui.main===ALL?null:db.mains.find(m=>m.id===ui.main)||null;
+  if(ui.main!==ALL&&!main){ui.main=ALL;}
+  if(ui.main===ALL)ui.sub=ALL;
+  let sub=null;
+  if(main){
+    if(!ui.sub)ui.sub=ALL;
+    if(ui.sub!==ALL){sub=main.subs.find(s=>s.id===ui.sub)||null;if(!sub)ui.sub=ALL;}
+  }
+  savePrefs();
 
-  if(!db.lastExport&&db.mains.some(m=>m.subs.some(s=>s.items.length)))
-    root.append(h('div',{class:'hint warn',text:'提醒：資料只存在這個瀏覽器，建議到「備份／媒體庫」匯出一份備份。'}));
-  else if(db.lastExport&&Date.now()-db.lastExport>30*864e5)
-    root.append(h('div',{class:'hint warn',text:'距離上次匯出備份已超過 30 天。'}));
+  root.append(ioBlock());
 
-  root.append(catBlock('主分類',db.mains,main,c=>c.name,id=>{ui.main=id;ui.sub=null;renderPL();},{
-    add:async()=>{const r=await ask('新增主分類',[{key:'n',label:'名稱'}]);if(r&&r.n){const m={id:uid(),name:r.n,subs:[{id:uid(),name:'預設清單',items:[]}]};db.mains.push(m);ui.main=m.id;ui.sub=null;save();renderPL();}},
+  root.append(catBlock('主分類',db.mains,main,c=>c.name+' ('+countOf(c)+')',id=>{ui.main=id;ui.sub=ALL;renderPL();},{
+    add:async()=>{const r=await ask('新增主分類',[{key:'n',label:'名稱'}]);if(r&&r.n){const m={id:uid(),name:r.n,subs:[{id:uid(),name:'預設清單',items:[]}]};db.mains.push(m);ui.main=m.id;ui.sub=ALL;save();renderPL();}},
     rename:async()=>{const r=await ask('主分類改名',[{key:'n',label:'名稱',value:main.name}]);if(r&&r.n){main.name=r.n;save();renderPL();}},
     up:()=>{if(move(db.mains,db.mains.indexOf(main),-1)){save();renderPL();}},
     down:()=>{if(move(db.mains,db.mains.indexOf(main),1)){save();renderPL();}},
-    del:async()=>{const n=main.subs.reduce((a,s)=>a+s.items.length,0);if(await confirmBox('刪除主分類「'+main.name+'」及其下所有次分類與 '+n+' 個項目？此動作無法復原（媒體庫內的檔案不受影響）。')){db.mains.splice(db.mains.indexOf(main),1);ui.main=ui.sub=null;save();renderPL();}}
-  }));
-  if(!main)return;
+    del:async()=>{if(await confirmBox('刪除主分類「'+main.name+'」及其下所有次分類與 '+countOf(main)+' 個項目？此動作無法復原（媒體庫內的檔案不受影響）。')){db.mains.splice(db.mains.indexOf(main),1);ui.main=ui.sub=ALL;save();renderPL();}}
+  },{on:ui.main===ALL,label:'ALL ('+entriesOf(ALL,ALL).length+')',pick:()=>{ui.main=ALL;ui.sub=ALL;renderPL();}}));
 
-  root.append(catBlock('次分類（'+main.name+'）',main.subs,sub,c=>c.name+' ('+c.items.length+')',id=>{ui.sub=id;renderPL();},{
-    add:async()=>{const r=await ask('新增次分類',[{key:'n',label:'名稱'}]);if(r&&r.n){const s={id:uid(),name:r.n,items:[]};main.subs.push(s);ui.sub=s.id;save();renderPL();}},
-    rename:async()=>{const r=await ask('次分類改名',[{key:'n',label:'名稱',value:sub.name}]);if(r&&r.n){sub.name=r.n;save();renderPL();}},
-    up:()=>{if(move(main.subs,main.subs.indexOf(sub),-1)){save();renderPL();}},
-    down:()=>{if(move(main.subs,main.subs.indexOf(sub),1)){save();renderPL();}},
-    del:async()=>{if(await confirmBox('刪除次分類「'+sub.name+'」及其 '+sub.items.length+' 個項目？此動作無法復原。')){main.subs.splice(main.subs.indexOf(sub),1);ui.sub=null;save();renderPL();}}
-  }));
-  if(!sub){root.append(h('div',{class:'hint',text:'此主分類還沒有次分類，請按上方「＋」新增。'}));return;}
+  if(main){
+    root.append(catBlock('次分類（'+main.name+'）',main.subs,sub,c=>c.name+' ('+c.items.length+')',id=>{ui.sub=id;renderPL();},{
+      add:async()=>{const r=await ask('新增次分類',[{key:'n',label:'名稱'}]);if(r&&r.n){const s={id:uid(),name:r.n,items:[]};main.subs.push(s);ui.sub=s.id;save();renderPL();}},
+      rename:async()=>{const r=await ask('次分類改名',[{key:'n',label:'名稱',value:sub.name}]);if(r&&r.n){sub.name=r.n;save();renderPL();}},
+      up:()=>{if(move(main.subs,main.subs.indexOf(sub),-1)){save();renderPL();}},
+      down:()=>{if(move(main.subs,main.subs.indexOf(sub),1)){save();renderPL();}},
+      del:async()=>{if(await confirmBox('刪除次分類「'+sub.name+'」及其 '+sub.items.length+' 個項目？此動作無法復原。')){main.subs.splice(main.subs.indexOf(sub),1);ui.sub=ALL;save();renderPL();}}
+    },{on:ui.sub===ALL,label:'ALL ('+countOf(main)+')',pick:()=>{ui.sub=ALL;renderPL();}}));
+  }
 
+  const entries=entriesOf(ui.main,ui.sub);
+  const viewName=ui.main===ALL?'全部':(sub?main.name+' / '+sub.name:main.name+'（全部次分類）');
   const blk=h('div',{class:'block'},h('div',{class:'bhead'},
-    h('strong',{text:'清單內容（'+sub.items.length+'）'}),
+    h('strong',{text:viewName+'（'+entries.length+'）'}),
     h('div',{class:'ops'},
-      h('button',{class:'primary',onclick:()=>sub.items.length?playQueue(sub.items,0):toast('清單是空的'),text:'▶ 播放全部'}),
+      h('button',{class:'primary',onclick:()=>entries.length?playQueue(entries.map(e=>e.it),0):toast('清單是空的'),text:'▶ 播放全部'}),
       h('button',{onclick:addCurrent,text:'＋ 目前播放'}),
       h('button',{onclick:()=>$('#plFiles').click(),text:'＋ 匯入檔案'}),
       h('button',{onclick:addManual,text:'＋ 網址'}))));
-  if(!sub.items.length)blk.append(h('div',{class:'hint',text:'尚無項目。「＋ 匯入檔案」可一次選多個本地影音，會存入媒體庫並加入此清單；「＋ 網址」可貼 YouTube 或影音連結。'}));
-  sub.items.forEach((it,idx)=>{
-    const sel=h('select',{style:'max-width:150px;padding:5px',onchange:e=>{
-      const v=e.target.value;if(!v)return;const [mi,si]=v.split('|').map(Number);
+  if(!entries.length)blk.append(h('div',{class:'hint',text:'這裡還沒有項目。「＋ 匯入檔案」可一次選多個本地影音，會存入媒體庫並加入清單；「＋ 網址」可貼 YouTube 或影音連結。'}));
+  const playList=entries.map(e=>e.it);
+  entries.forEach((e,idx)=>{
+    const it=e.it,owner=e.sub;
+    const sel=h('select',{style:'max-width:150px;padding:5px',onchange:ev=>{
+      const v=ev.target.value;if(!v)return;const [mi,si]=v.split('|').map(Number);
       const to=db.mains[mi]&&db.mains[mi].subs[si];if(!to)return;
-      sub.items.splice(idx,1);to.items.push(it);save();toast('已移至「'+db.mains[mi].name+' / '+to.name+'」');renderPL();
+      owner.items.splice(owner.items.indexOf(it),1);to.items.push(it);save();toast('已移至「'+db.mains[mi].name+' / '+to.name+'」');renderPL();
     }},h('option',{value:'',text:'移至…'}),
-      db.mains.flatMap((m,mi)=>m.subs.map((s,si)=>(m===main&&s===sub)?null:h('option',{value:mi+'|'+si,text:m.name+' / '+s.name}))));
+      db.mains.flatMap((m,mi)=>m.subs.map((s,si)=>s===owner?null:h('option',{value:mi+'|'+si,text:m.name+' / '+s.name}))));
     blk.append(h('div',{class:'item'+(keyOf(it)===playingKey?' playing':'')},
-      h('button',{class:'ititle',onclick:()=>playQueue(sub.items,idx)},h('span',{class:'badge',text:badge(it)}),h('span',{class:'t',text:it.title})),
+      h('button',{class:'ititle',onclick:()=>playQueue(playList,idx)},h('span',{class:'badge',text:badge(it)}),h('span',{class:'t',text:it.title})),
+      !sub&&h('div',{class:'meta',text:e.main.name+' / '+e.sub.name}),
       h('div',{class:'ops'},
-        ib('↑','上移',()=>{if(move(sub.items,idx,-1)){save();renderPL();}}),
-        ib('↓','下移',()=>{if(move(sub.items,idx,1)){save();renderPL();}}),
+        sub&&ib('↑','上移',()=>{if(move(owner.items,owner.items.indexOf(it),-1)){save();renderPL();}}),
+        sub&&ib('↓','下移',()=>{if(move(owner.items,owner.items.indexOf(it),1)){save();renderPL();}}),
         ib('✎','改標題／網址',async()=>{
           const f=[{key:'t',label:'標題',value:it.title}];if(it.type!=='local')f.push({key:'u',label:'網址',value:it.url});
           const r=await ask('編輯項目',f);if(!r)return;
@@ -644,24 +714,24 @@ function renderPL(){
           if(r.u!==undefined&&safeMedia(r.u)){const id=ytId(r.u);it.type=id?'youtube':'url';it.url=id?'https://www.youtube.com/watch?v='+id:r.u;}
           save();renderPL();}),
         sel,
-        ib('🗑','刪除',()=>{sub.items.splice(idx,1);save();renderPL();},'danger'))));
+        ib('🗑','刪除',()=>{owner.items.splice(owner.items.indexOf(it),1);save();renderPL();},'danger'))));
   });
   root.append(blk);
   root.append(h('input',{type:'file',id:'plFiles',multiple:true,hidden:true,accept:'video/*,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.mp4,.webm,.mkv',onchange:async e=>{
     const files=[...e.target.files];e.target.value='';if(!files.length)return;
-    const s=curSub();if(!s)return;
+    const s=await pickSub();if(!s)return;
     files.forEach(f=>{
       const it={id:uid(),type:'local',title:stripExt(f.name),name:f.name,size:f.size};
       tempFiles.set(libKey(it),f);
       if(!s.items.some(x=>keyOf(x)===keyOf(it)))s.items.push(it);
     });
-    save();renderPL();
+    save();renderPL();toast('已加入「'+s.name+'」，正在存入媒體庫…');
     await libSaveFiles(files);
   }}));
 }
 async function addCurrent(){
-  const sub=curSub();if(!sub){toast('請先選擇次分類');return;}
   if(!cur){toast('目前沒有載入的影音');return;}
+  const sub=await pickSub();if(!sub)return;
   let it;
   if(cur.type==='local'){
     const k=libKey(cur);
@@ -673,31 +743,63 @@ async function addCurrent(){
     }
     it={id:uid(),type:'local',title:cur.title,name:cur.name,size:cur.size};
   }else it={id:uid(),type:cur.type,title:cur.title||'未命名',url:cur.url};
-  if(sub.items.some(x=>keyOf(x)===keyOf(it))){toast('清單中已有相同項目');return;}
+  if(sub.items.some(x=>keyOf(x)===keyOf(it))){toast('「'+sub.name+'」已有相同項目');return;}
   sub.items.push(it);save();renderPL();toast('已加入「'+sub.name+'」');
 }
 async function addManual(){
-  const sub=curSub();if(!sub){toast('請先選擇次分類');return;}
   const r=await ask('以網址新增項目',[{key:'u',label:'YouTube 或影音/音訊連結（也可填同資料夾的相對路徑）',placeholder:'https://'},{key:'t',label:'標題（可留空）'}]);
   if(!r||!r.u)return;
   const id=ytId(r.u);
   if(!id&&!safeMedia(r.u)){toast('網址格式不正確');return;}
+  const sub=await pickSub();if(!sub)return;
   let title=r.t;
   if(id&&!title)title=await ytTitle(id);
   if(!title){try{title=decodeURIComponent(new URL(r.u,location.href).pathname.split('/').pop());}catch(e){}}
   sub.items.push({id:uid(),type:id?'youtube':'url',title:title||'未命名',url:id?'https://www.youtube.com/watch?v='+id:r.u});
-  save();renderPL();
+  save();renderPL();toast('已加入「'+sub.name+'」');
 }
 
 /* ---------- Podcast ---------- */
+async function fetchTO(u,ms){
+  const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||12000);
+  try{return await fetch(u,{signal:c.signal});}finally{clearTimeout(t);}
+}
+const httpsUp=u=>String(u||'').replace(/^http:/i,'https:');
+/* 方法 1：iTunes 單集資料（允許跨網站讀取，最穩定；需要節目的 iTunes ID） */
+async function resolveCid(p){
+  if(p.cid)return p.cid;
+  try{
+    const r=await fetchTO('https://itunes.apple.com/search?media=podcast&limit=10&term='+encodeURIComponent(p.name));
+    const j=await r.json();
+    const norm=u=>String(u||'').replace(/^https?:\/\//i,'').replace(/\/+$/,'').toLowerCase();
+    const hit=(j.results||[]).find(x=>x.feedUrl&&norm(x.feedUrl)===norm(p.feed));
+    if(hit){p.cid=String(hit.collectionId);return p.cid;}
+  }catch(e){}
+  return '';
+}
+async function episodesFromItunes(p){
+  const cid=await resolveCid(p);if(!cid)throw new Error('no cid');
+  const r=await fetchTO('https://itunes.apple.com/lookup?id='+cid+'&media=podcast&entity=podcastEpisode&limit=60');
+  const j=await r.json();
+  const eps=(j.results||[]).filter(x=>x.episodeUrl).map(x=>({
+    title:x.trackName||'未命名單集',url:httpsUp(x.episodeUrl),date:x.releaseDate||'',
+    dur:x.trackTimeMillis?String(Math.round(x.trackTimeMillis/1000)):''}));
+  if(!eps.length)throw new Error('empty');
+  const first=(j.results||[]).find(x=>x.artworkUrl100);
+  return {title:'',image:first?safeUrl(first.artworkUrl100):'',eps};
+}
+/* 方法 2：直接讀 RSS，失敗時依序嘗試多個轉接服務 */
 async function fetchFeedText(url){
-  const tries=[url,'https://api.allorigins.win/raw?url='+encodeURIComponent(url),'https://corsproxy.io/?'+encodeURIComponent(url)];
+  const tries=[url,
+    'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
+    'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url),
+    'https://corsproxy.io/?'+encodeURIComponent(url)];
   for(const u of tries){
-    try{const r=await fetch(u);if(r.ok){const t=await r.text();if(/<rss|<feed|<channel/i.test(t))return t;}}catch(e){}
+    try{const r=await fetchTO(u);if(r.ok){const t=await r.text();if(/<rss|<feed|<channel/i.test(t))return t;}}catch(e){}
   }
   throw new Error('feed');
 }
-async function loadFeed(feed){
+async function episodesFromRss(feed){
   const doc=new DOMParser().parseFromString(await fetchFeedText(feed),'text/xml');
   if(doc.querySelector('parsererror'))throw new Error('parse');
   const ch=doc.querySelector('channel');if(!ch)throw new Error('parse');
@@ -705,25 +807,46 @@ async function loadFeed(feed){
   const img=ch.getElementsByTagName('itunes:image')[0];
   const eps=[];
   doc.querySelectorAll('item').forEach(it=>{
-    if(eps.length>=50)return;
-    const en=it.querySelector('enclosure');let url=en&&en.getAttribute('url');if(!url)return;
-    url=url.replace(/^http:/i,'https:');
+    if(eps.length>=60)return;
+    const en=it.querySelector('enclosure');const url=en&&en.getAttribute('url');if(!url)return;
     const d=it.querySelector('pubDate');const du=it.getElementsByTagName('itunes:duration')[0];
     const ti=it.querySelector('title');
-    eps.push({title:(ti&&ti.textContent.trim())||'未命名單集',url,date:d?d.textContent.trim():'',dur:du?du.textContent.trim():''});
+    eps.push({title:(ti&&ti.textContent.trim())||'未命名單集',url:httpsUp(url),date:d?d.textContent.trim():'',dur:du?du.textContent.trim():''});
   });
+  if(!eps.length)throw new Error('empty');
   return {title:tt?tt.textContent.trim():'',image:img?safeUrl(img.getAttribute('href')):'',eps};
 }
+/* 方法 3：rss2json（公開轉換服務，最多約 10 集） */
+async function episodesFromJson(feed){
+  const r=await fetchTO('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(feed));
+  const j=await r.json();if(j.status!=='ok')throw new Error('rss2json');
+  const eps=(j.items||[]).map(it=>({title:it.title||'未命名單集',url:httpsUp(it.enclosure&&it.enclosure.link),date:it.pubDate||'',dur:''})).filter(e=>e.url);
+  if(!eps.length)throw new Error('empty');
+  return {title:(j.feed&&j.feed.title)||'',image:safeUrl(j.feed&&j.feed.image),eps};
+}
+async function loadEpisodes(p){
+  for(const fn of [()=>episodesFromItunes(p),()=>episodesFromRss(p.feed),()=>episodesFromJson(p.feed)]){
+    try{return await fn();}catch(e){}
+  }
+  throw new Error('all failed');
+}
 async function refreshPod(p,quiet){
+  toast('讀取單集中…');
   try{
-    const info=await loadFeed(p.feed);
-    p.eps=info.eps;p.at=Date.now();if(!p.image)p.image=info.image;if(!p.name&&info.title)p.name=info.title;
-    save();renderPod();if(!quiet)toast('已更新 '+info.eps.length+' 集');
-  }catch(e){toast('讀取失敗：此節目網址可能不允許網頁讀取，或網路不通');}
+    const info=await loadEpisodes(p);
+    p.eps=info.eps;p.at=Date.now();if(!p.image)p.image=info.image;if((!p.name||p.name==='Podcast')&&info.title)p.name=info.title;
+    save();renderPod();if(!quiet)toast('已更新 '+info.eps.length+' 集');else $('#toast').style.display='none';
+  }catch(e){toast('讀取單集失敗。建議用上方「搜尋」重新訂閱這個節目（透過搜尋訂閱最穩定），或稍後再按 ⟳。');}
 }
 function addPodcast(p){
-  if(db.podcasts.some(x=>x.feed===p.feed)){toast('已訂閱過這個節目');return null;}
-  const np={id:uid(),name:p.name||'Podcast',feed:p.feed,image:safeUrl(p.image),eps:[],at:0};
+  const ex=db.podcasts.find(x=>x.feed===p.feed);
+  if(ex){
+    if(p.cid&&!ex.cid){ex.cid=String(p.cid);save();}
+    ui.pod=ex.id;renderPod();toast('已訂閱過這個節目');
+    if(!ex.eps.length)refreshPod(ex,true);
+    return null;
+  }
+  const np={id:uid(),name:p.name||'Podcast',feed:p.feed,image:safeUrl(p.image),cid:p.cid?String(p.cid):'',eps:[],at:0};
   db.podcasts.push(np);ui.pod=np.id;save();renderPod();refreshPod(np,true);return np;
 }
 const fmtDur=d=>!d?'':/^\d+$/.test(d)?fmtT(Number(d)):d;
@@ -736,14 +859,14 @@ function renderPod(){
     const term=q.value.trim();if(!term)return;
     res.replaceChildren(h('div',{class:'hint',text:'搜尋中…'}));
     try{
-      const r=await fetch('https://itunes.apple.com/search?media=podcast&limit=15&country=TW&term='+encodeURIComponent(term));
+      const r=await fetchTO('https://itunes.apple.com/search?media=podcast&limit=15&country=TW&term='+encodeURIComponent(term));
       const j=await r.json();const list=(j.results||[]).filter(x=>x.feedUrl);
       res.replaceChildren();
       if(!list.length)res.append(h('div',{class:'hint',text:'找不到結果，可改貼上 RSS 網址。'}));
       list.forEach(x=>res.append(h('div',{class:'sr'},
         h('img',{src:safeUrl(x.artworkUrl100),alt:'',loading:'lazy'}),
         h('div',{class:'grow'},h('div',{text:x.collectionName}),h('div',{class:'meta',text:x.artistName})),
-        h('button',{onclick:()=>addPodcast({name:x.collectionName,feed:x.feedUrl,image:x.artworkUrl100}),text:'＋ 訂閱'}))));
+        h('button',{onclick:()=>addPodcast({name:x.collectionName,feed:x.feedUrl,image:x.artworkUrl100,cid:x.collectionId}),text:'＋ 訂閱'}))));
     }catch(e){res.replaceChildren(h('div',{class:'hint warn',text:'搜尋失敗，請改貼上 RSS 網址。'}));}
   };
   q.addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
@@ -781,9 +904,9 @@ function renderPod(){
       h('div',{class:'row'},h('span',{class:'meta',text:meta}),
         h('div',{class:'ops'},
           ib('▶','播放',play),
-          ib('＋','加入目前選擇的播放清單',()=>{
-            const sub=curSub();if(!sub){toast('請先到播放清單選擇次分類');return;}
-            if(sub.items.some(x=>x.url===ep.url)){toast('清單中已有此單集');return;}
+          ib('＋','加入播放清單',async()=>{
+            const sub=await pickSub();if(!sub)return;
+            if(sub.items.some(x=>x.url===ep.url)){toast('「'+sub.name+'」已有此單集');return;}
             sub.items.push({id:uid(),type:'url',title:ep.title,url:ep.url});save();toast('已加入「'+sub.name+'」');}),
           ib('⬇','下載音訊',()=>downloadEp(ep))))));
   });
@@ -809,13 +932,15 @@ async function downloadEp(ep){
 }
 
 /* ---------- 匯出／匯入／預設清單 ---------- */
-function exportInfo(){$('#exportInfo').textContent=db.lastExport?'上次匯出：'+new Date(db.lastExport).toLocaleString('zh-TW'):'尚未匯出過備份。';}
-$('#exportBtn').onclick=()=>{
-  const data={app:'mirror-player',schema:1,exportedAt:new Date().toISOString(),mains:db.mains,
-    podcasts:db.podcasts.map(p=>({name:p.name,feed:p.feed,image:p.image}))};
+let deviceId=localStorage.getItem('mirror.device');
+if(!deviceId){deviceId=uid()+uid();try{localStorage.setItem('mirror.device',deviceId);}catch(e){}}
+
+function exportData(){
+  const data={app:'mirror-player',schema:2,deviceId,exportedAt:new Date().toISOString(),mains:db.mains,
+    podcasts:db.podcasts.map(p=>({name:p.name,feed:p.feed,image:p.image,cid:p.cid||''}))};
   saveBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'mirror-backup-'+ymd()+'.json');
-  db.lastExport=Date.now();save();exportInfo();toast('已匯出備份檔');
-};
+  db.lastExport=Date.now();save();renderPL();toast('已匯出備份檔');
+}
 function cleanData(d){
   if(!d||!Array.isArray(d.mains))throw new Error('格式不符');
   const str=(v,n)=>typeof v==='string'?v.slice(0,n||300):'';
@@ -826,9 +951,17 @@ function cleanData(d){
         return {id:uid(),type,title:str(it&&it.title)||'未命名',url:str(it&&it.url,2000),name:str(it&&it.name),size:Number(it&&it.size)||0};
       }).filter(it=>it.type==='local'?it.name:(it.type==='youtube'?!!ytId(it.url):safeMedia(it.url)))
     }))}));
-  const podcasts=(Array.isArray(d.podcasts)?d.podcasts:[]).map(p=>({id:uid(),name:str(p&&p.name)||'Podcast',feed:str(p&&p.feed,2000),image:safeUrl(str(p&&p.image,2000)),eps:[],at:0}))
+  const podcasts=(Array.isArray(d.podcasts)?d.podcasts:[]).map(p=>({id:uid(),name:str(p&&p.name)||'Podcast',feed:str(p&&p.feed,2000),image:safeUrl(str(p&&p.image,2000)),cid:String((p&&p.cid)||'').replace(/\D/g,''),eps:[],at:0}))
     .filter(p=>safeUrl(p.feed));
   return {mains,podcasts};
+}
+/* 不是同一台裝置匯出的檔案：媒體庫（本地檔案）項目不適用，直接略過 */
+function prepImport(raw){
+  const imp=cleanData(raw);
+  const same=!!(raw&&raw.deviceId&&raw.deviceId===deviceId);
+  let skipped=0;
+  if(!same)imp.mains.forEach(m=>m.subs.forEach(s=>{const n=s.items.length;s.items=s.items.filter(it=>it.type!=='local');skipped+=n-s.items.length;}));
+  return {imp,skipped};
 }
 function mergeImport(imp){
   imp.mains.forEach(m=>{
@@ -840,29 +973,36 @@ function mergeImport(imp){
       s.items.forEach(it=>{if(!es.items.some(x=>keyOf(x)===keyOf(it)&&x.title===it.title))es.items.push(it);});
     });
   });
-  imp.podcasts.forEach(p=>{if(!db.podcasts.some(x=>x.feed===p.feed))db.podcasts.push(p);});
+  imp.podcasts.forEach(p=>{
+    const ex=db.podcasts.find(x=>x.feed===p.feed);
+    if(!ex)db.podcasts.push(p);else if(p.cid&&!ex.cid)ex.cid=p.cid;
+  });
 }
 const countItems=imp=>imp.mains.reduce((a,m)=>a+m.subs.reduce((b,s)=>b+s.items.length,0),0);
-$('#importBtn').onclick=async()=>{
-  const f=$('#importFile').files[0];if(!f){toast('請先選擇備份檔');return;}
-  let imp;try{imp=cleanData(JSON.parse(await f.text()));}catch(e){toast('匯入失敗：不是有效的備份檔');return;}
-  const mode=document.querySelector('input[name=imode]:checked').value;
-  if(mode==='replace'){
-    if(!await confirmBox('將以備份檔取代目前所有播放清單與 Podcast 訂閱（媒體庫檔案不受影響），確定嗎？'))return;
-    db.mains=imp.mains.length?imp.mains:defaults().mains;db.podcasts=imp.podcasts;
-  }else mergeImport(imp);
-  ui.main=ui.sub=ui.pod=null;save();renderPL();renderPod();
-  $('#importFile').value='';toast('匯入完成（備份內共 '+countItems(imp)+' 個項目）');
-};
+async function importFromFile(f){
+  let raw;try{raw=JSON.parse(await f.text());}catch(e){toast('匯入失敗：不是有效的備份檔');return;}
+  let r;try{r=prepImport(raw);}catch(e){toast('匯入失敗：檔案格式不符');return;}
+  const {imp,skipped}=r;
+  const msg='備份檔含 '+countItems(imp)+' 個項目、'+imp.podcasts.length+' 個 Podcast'+
+    (skipped?'。因為這份備份來自其他裝置，已自動略過 '+skipped+' 個本地檔案（媒體庫）項目':'')+
+    '。要怎麼匯入？「取代」會覆蓋目前所有清單與訂閱。';
+  const choice=await choiceBox(msg,[{label:'取代',value:'replace'},{label:'合併（建議）',value:'merge',primary:true}]);
+  if(!choice)return;
+  if(choice==='replace'){db.mains=imp.mains.length?imp.mains:defaults().mains;db.podcasts=imp.podcasts;}
+  else mergeImport(imp);
+  ui.main=ui.sub=ALL;ui.pod=null;save();renderPL();renderPod();
+  toast('匯入完成：'+countItems(imp)+' 個項目'+(skipped?'（略過 '+skipped+' 個本地檔案項目）':''));
+}
+$('#importFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importFromFile(f);});
 async function loadRemote(manual){
   try{
     const r=await fetch('mirror-data.json',{cache:'no-store'});
     if(!r.ok)throw new Error('404');
-    const imp=cleanData(await r.json());
+    const {imp,skipped}=prepImport(await r.json());
     if(firstRun&&!manual){db.mains=imp.mains.length?imp.mains:db.mains;db.podcasts=imp.podcasts;}
     else mergeImport(imp);
-    ui.main=ui.sub=ui.pod=null;save();renderPL();renderPod();
-    toast('已載入網站預設清單（'+countItems(imp)+' 個項目）');
+    ui.main=ui.sub=ALL;ui.pod=null;save();renderPL();renderPod();
+    toast('已載入網站預設清單（'+countItems(imp)+' 個項目'+(skipped?'，略過 '+skipped+' 個本地檔案項目':'')+'）');
   }catch(e){
     if(manual)toast('找不到或無法讀取 mirror-data.json（請放在與 mirror.html 同一個資料夾）');
     else save();
@@ -900,9 +1040,27 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   ['pl','pod','bk'].forEach(t=>$('#tab-'+t).hidden=(t!==b.dataset.tab));
   if(b.dataset.tab==='pl')renderPL();
   if(b.dataset.tab==='pod'){renderPod();const p=db.podcasts.find(x=>x.id===ui.pod)||db.podcasts[0];if(p&&!p.eps.length)refreshPod(p,true);}
-  if(b.dataset.tab==='bk'){exportInfo();renderLib();}
+  if(b.dataset.tab==='bk')renderLib();
 });
-setMirror(!!prefs.mirror);setLoop(!!prefs.loop);applyRate();renderPL();exportInfo();
+$('#clearUrl').onclick=()=>{const i=$('#ytUrl');i.value='';i.focus();};
+
+/* PWA：安裝到主畫面 */
+let deferredInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;$('#installBtn').hidden=false;});
+$('#installBtn').onclick=async()=>{
+  if(!deferredInstall)return;
+  deferredInstall.prompt();
+  try{await deferredInstall.userChoice;}catch(e){}
+  deferredInstall=null;$('#installBtn').hidden=true;
+};
+window.addEventListener('appinstalled',()=>{$('#installBtn').hidden=true;toast('已安裝到主畫面');});
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+/* 每次開啟預設顯示 ALL（全部），避免停在空的分類 */
+ui.main=ALL;ui.sub=ALL;
+setMirror(!!prefs.mirror);setLoop(!!prefs.loop);applyRate();renderPL();
 if(firstRun)loadRemote(false);
 })();
 </script>
