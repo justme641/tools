@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>💃 舞蹈鏡像練習與影音播放器</title>
+  <title>影音播放器</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: #121212; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
@@ -36,15 +36,17 @@
     .changelog-title { font-size: 0.95rem; font-weight: bold; color: #9ca3af; margin-bottom: 8px; }
     .changelog-item { font-size: 0.85rem; color: #6b7280; line-height: 1.5; }
     .changelog-item ul { margin-left: 20px; margin-top: 4px; }
+    .changelog-item a { color: #3b82f6; text-decoration: none; }
+    .changelog-item a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
 
-  <h1>💃 舞蹈鏡像練習與影音播放器</h1>
+  <h1>影音播放器</h1>
 
   <div class="container">
     <div class="input-group">
-      <label style="font-size: 0.85rem; color: #aaa;">選擇本地影片或 MP3 音訊檔：</label>
+      <label style="font-size: 0.85rem; color: #aaa;">選擇本地影片或音訊檔 (MP3, M4A 等)：</label>
       <input type="file" id="localVideo" accept="video/*,audio/*">
       
       <label style="font-size: 0.85rem; color: #aaa; margin-top: 5px;">貼上 YouTube 影片網址：</label>
@@ -53,9 +55,9 @@
         <button class="btn" onclick="loadYouTube()">載入 YT 播放</button>
       </div>
       
-      <!-- 呼叫 Seal / 桌機提示按鈕 -->
+      <!-- 喚醒 YTDLnis / 桌機提示按鈕 -->
       <div style="display: flex; gap: 8px; margin-top: 5px;">
-        <button class="btn btn-download" style="font-size: 0.85rem; width: 100%;" onclick="openSealOrWarn()">📱 複製網址並開啟 Seal 下載</button>
+        <button class="btn btn-download" style="font-size: 0.85rem; width: 100%;" onclick="openYTDLnisOrWarn()">📱 複製網址並開啟 YTDLnis 下載</button>
       </div>
     </div>
 
@@ -88,9 +90,14 @@
   <div class="changelog-section">
     <div class="changelog-title">📜 修改歷程紀錄 (Changelog)</div>
     <div class="changelog-item">
-      <strong>v1.2 (2026-10-23)</strong>
+      <strong>v1.3 (2026-10-23)</strong>
       <ul>
-        <li>下載按鈕優化：改為點擊後自動複製 YT 網址並嘗試呼叫手機 Seal App；若在桌機或未安裝則自動彈出提示請至手機上操作。</li>
+        <li>介面調整：將網頁標題與標題列簡化改為「影音播放器」。</li>
+        <li>下載優化：將喚醒工具從 Seal 改為支援度與格式控制極佳的 <strong>YTDLnis</strong>；若未安裝則提供提示與官方 GitHub 下載引導。</li>
+      </ul>
+      <strong style="display:inline-block; margin-top:6px;">v1.2 (2026-10-23)</strong>
+      <ul>
+        <li>下載按鈕優化：改為點擊後自動複製 YT 網址並嘗試呼叫下載 App；桌機端則顯示提示。</li>
       </ul>
       <strong style="display:inline-block; margin-top:6px;">v1.1 (2026-10-23)</strong>
       <ul>
@@ -148,26 +155,23 @@
       }
     }
 
-    // 智慧判斷：複製網址並嘗試開 Seal，桌機則給予提示
-    function openSealOrWarn() {
+    // 智慧判斷：複製網址並嘗試開 YTDLnis，若無則提示並引導至 GitHub
+    function openYTDLnisOrWarn() {
       const urlInput = document.getElementById('ytUrl').value;
       if (!urlInput) {
         alert('請先在上方輸入框貼上 YouTube 網址！');
         return;
       }
 
-      // 檢查是否為手機裝置 (簡單判斷 UA)
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const isMobile = /Android|iPhone|iPhone|iPod/i.test(navigator.userAgent);
 
-      // 1. 自動複製網址到剪貼簿
       navigator.clipboard.writeText(urlInput).then(() => {
         if (isMobile) {
-          // 嘗試呼叫 Seal App (透過 intent 或是直接喚醒)
-          alert('網址已自動複製！即將為您嘗試開啟 Seal App（若未自動跳轉，請手動開啟 Seal 並直接貼上）');
-          window.location.href = `intent://${urlInput}#Intent;package=com.junkfood.seal;end;`;
+          alert('網址已自動複製到剪貼簿！\n\n即將嘗試開啟 YTDLnis App（若未自動開啟，請手動打開 YTDLnis 並直接貼上網址）。\n\n若尚未安裝 YTDLnis，請至其官方 GitHub 下載：\nhttps://github.com/DenisCerri/YTDLnis');
+          // 嘗試透過 Android Intent 喚醒 YTDLnis
+          window.location.href = `intent://${urlInput}#Intent;package=com.deniscerri.ytdlnis;end;`;
         } else {
-          // 桌機端提示
-          alert('【桌機提示】\n網址已複製到剪貼簿！由於桌機無法直接使用 Seal App 下載，請改至手機上開啟此網頁並使用 Seal App 進行下載喔！');
+          alert('【桌機提示】\n網址已複製到剪貼簿！由於桌機無法直接呼叫手機的 YTDLnis，請改至手機上開啟此網頁進行操作。\n\n若手機尚未安裝 YTDLnis，可至官方 GitHub 下載：\nhttps://github.com/DenisCerri/YTDLnis');
         }
       }).catch(err => {
         alert('複製網址失敗，請手動複製。');
