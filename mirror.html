@@ -31,13 +31,16 @@
     .control-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     select { padding: 8px; border-radius: 6px; background: #2a2a2a; color: white; border: 1px solid #333; }
 
-    /* 版本歷程樣式 */
+    /* 版本歷程與下載引導樣式 */
+    .download-tip { background: #252525; padding: 10px 14px; border-radius: 6px; font-size: 0.85rem; color: #aaa; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .download-tip a { color: #3b82f6; text-decoration: none; font-weight: bold; }
+    .download-tip a:hover { text-decoration: underline; }
+
     .changelog-section { margin-top: 30px; width: 100%; max-width: 800px; background: #181818; padding: 15px 20px; border-radius: 8px; border: 1px solid #282828; }
     .changelog-title { font-size: 0.95rem; font-weight: bold; color: #9ca3af; margin-bottom: 8px; }
     .changelog-item { font-size: 0.85rem; color: #6b7280; line-height: 1.5; }
     .changelog-item ul { margin-left: 20px; margin-top: 4px; }
     .changelog-item a { color: #3b82f6; text-decoration: none; }
-    .changelog-item a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -55,9 +58,15 @@
         <button class="btn" onclick="loadYouTube()">載入 YT 播放</button>
       </div>
       
-      <!-- 喚醒 YTDLnis / 桌機提示按鈕 -->
+      <!-- 喚醒 YTDLnis 按鈕 -->
       <div style="display: flex; gap: 8px; margin-top: 5px;">
         <button class="btn btn-download" style="font-size: 0.85rem; width: 100%;" onclick="openYTDLnisOrWarn()">📱 複製網址並開啟 YTDLnis 下載</button>
+      </div>
+
+      <!-- 永久官方下載引導列 -->
+      <div class="download-tip">
+        <span>💡 還沒安裝 YTDLnis 嗎？</span>
+        <a href="https://github.com/deniscerri/ytdlnis/releases" target="_blank">🔗 點此前往 GitHub 官網下載 APK 檔</a>
       </div>
     </div>
 
@@ -90,22 +99,12 @@
   <div class="changelog-section">
     <div class="changelog-title">📜 修改歷程紀錄 (Changelog)</div>
     <div class="changelog-item">
-      <strong>v1.3 (2026-10-23)</strong>
-      <ul>
-        <li>介面調整：將網頁標題與標題列簡化改為「影音播放器」。</li>
-        <li>下載優化：將喚醒工具從 Seal 改為支援度與格式控制極佳的 <strong>YTDLnis</strong>；若未安裝則提供提示與官方 GitHub 下載引導。</li>
-      </ul>
-      <strong style="display:inline-block; margin-top:6px;">v1.2 (2026-10-23)</strong>
-      <ul>
-        <li>下載按鈕優化：改為點擊後自動複製 YT 網址並嘗試呼叫下載 App；桌機端則顯示提示。</li>
-      </ul>
-      <strong style="display:inline-block; margin-top:6px;">v1.1 (2026-10-23)</strong>
-      <ul>
-        <li>介面優化：整合無廣告、極簡的 YouTube 影音取得通道按鈕。</li>
-      </ul>
-      <strong style="display:inline-block; margin-top:6px;">v1.0 (2026-10-23)</strong>
+      <strong>v1.0 (2026-10-23)</strong>
       <ul>
         <li>創立專案：實現本地影音與 YouTube 嵌入鏡像播放器、全螢幕、循環播放及速度調節。</li>
+        <li>介面調整：優化按鈕配色，將標題簡化為「影音播放器」。</li>
+        <li>功能擴充：新增本地 MP3/M4A 音訊播放支援。</li>
+        <li>下載整合：新增點擊複製網址並嘗試喚醒 YTDLnis App 功能，並在介面加入官方 GitHub Releases 下載專屬直達捷徑。</li>
       </ul>
     </div>
   </div>
@@ -155,7 +154,7 @@
       }
     }
 
-    // 智慧判斷：複製網址並嘗試開 YTDLnis，若無則提示並引導至 GitHub
+    // 智慧判斷：複製網址並嘗試開 YTDLnis，桌機則給予友善提示
     function openYTDLnisOrWarn() {
       const urlInput = document.getElementById('ytUrl').value;
       if (!urlInput) {
@@ -163,15 +162,14 @@
         return;
       }
 
-      const isMobile = /Android|iPhone|iPhone|iPod/i.test(navigator.userAgent);
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
       navigator.clipboard.writeText(urlInput).then(() => {
         if (isMobile) {
-          alert('網址已自動複製到剪貼簿！\n\n即將嘗試開啟 YTDLnis App（若未自動開啟，請手動打開 YTDLnis 並直接貼上網址）。\n\n若尚未安裝 YTDLnis，請至其官方 GitHub 下載：\nhttps://github.com/DenisCerri/YTDLnis');
-          // 嘗試透過 Android Intent 喚醒 YTDLnis
+          alert('網址已自動複製到剪貼簿！\n即將嘗試開啟 YTDLnis（若未自動跳轉，請手動開啟 App 貼上）。');
           window.location.href = `intent://${urlInput}#Intent;package=com.deniscerri.ytdlnis;end;`;
         } else {
-          alert('【桌機提示】\n網址已複製到剪貼簿！由於桌機無法直接呼叫手機的 YTDLnis，請改至手機上開啟此網頁進行操作。\n\n若手機尚未安裝 YTDLnis，可至官方 GitHub 下載：\nhttps://github.com/DenisCerri/YTDLnis');
+          alert('【桌機提示】\n網址已複製到剪貼簿！由於桌機無法直接呼叫手機的 YTDLnis，請改至手機上開啟此網頁進行操作。');
         }
       }).catch(err => {
         alert('複製網址失敗，請手動複製。');
