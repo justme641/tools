@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💃 舞蹈鏡像練習小工具</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #121212; color: #fff; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
+    h1 { margin-bottom: 20px; font-size: 1.5rem; text-align: center; }
+    .container { width: 100%; max-width: 800px; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    .input-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    input[type="text"], input[type="file"] { padding: 10px; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: #fff; width: 100%; }
+    .btn { padding: 10px 16px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; background: #3b82f6; color: white; transition: 0.2s; }
+    .btn:hover { background: #2563eb; }
+    .btn-mirror { background: #ec4899; }
+    .btn-mirror:hover { background: #db2777; }
+    .video-wrapper { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+    
+    /* 鏡像翻轉核心 CSS */
+    video.mirrored, iframe.mirrored {
+      transform: scaleX(-1);
+    }
+    
+    video, iframe { width: 100%; height: 100%; border: none; transition: transform 0.3s ease; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-top: 15px; }
+    .speed-control { display: flex; align-items: center; gap: 8px; }
+    select { padding: 8px; border-radius: 6px; background: #2a2a2a; color: white; border: 1px solid #333; }
+  </style>
+</head>
+<body>
+
+  <h1>💃 舞蹈鏡像播放器 (Dance Mirror)</h1>
+
+  <div class="container">
+    <div class="input-group">
+      <input type="file" id="localVideo" accept="video/*">
+      <div style="display: flex; gap: 8px;">
+        <input type="text" id="ytUrl" placeholder="貼上 YouTube 影片網址...">
+        <button class="btn" onclick="loadYouTube()">載入 YT</button>
+      </div>
+    </div>
+
+    <div class="video-wrapper">
+      <video id="myVideo" controls style="display:none;"></video>
+      <iframe id="ytPlayer" style="display:none;" allowfullscreen></iframe>
+      <div id="placeholder" style="color: #888;">請選擇本地影片或輸入 YouTube 網址</div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-mirror" onclick="toggleMirror()">🪞 鏡像翻轉 (OnOff)</button>
+      
+      <div class="speed-control">
+        <label>播放速度：</label>
+        <select id="speedSelect" onchange="changeSpeed(this.value)">
+          <option value="0.5">0.5x (慢速)</option>
+          <option value="0.75">0.75x (稍慢)</option>
+          <option value="1" selected>1.0x (原速)</option>
+          <option value="1.25">1.25x (快速)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('myVideo');
+    const ytPlayer = document.getElementById('ytPlayer');
+    const placeholder = document.getElementById('placeholder');
+    let isMirrored = false;
+    let currentType = null; // 'local' or 'yt'
+
+    // 本地影片載入
+    document.getElementById('localVideo').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        video.src = url;
+        video.style.display = 'block';
+        ytPlayer.style.display = 'none';
+        placeholder.style.display = 'none';
+        currentType = 'local';
+        video.play();
+      }
+    });
+
+    // YouTube 載入 (轉換為 Embed 網址)
+    function loadYouTube() {
+      const urlInput = document.getElementById('ytUrl').value;
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = urlInput.match(regExp);
+
+      if (match && match[2].length === 11) {
+        const videoId = match[2];
+        ytPlayer.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
+        ytPlayer.style.display = 'block';
+        video.style.display = 'none';
+        placeholder.style.display = 'none';
+        currentType = 'yt';
+      } else {
+        alert('請輸入正確的 YouTube 影片網址！');
+      }
+    }
+
+    // 切換鏡像 (CSS 翻轉)
+    function toggleMirror() {
+      isMirrored = !isMirrored;
+      if (isMirrored) {
+        video.classList.add('mirrored');
+        ytPlayer.classList.add('mirrored');
+      } else {
+        video.classList.remove('mirrored');
+        ytPlayer.classList.remove('mirrored');
+      }
+    }
+
+    // 調整播放速度 (支援本地影片)
+    function changeSpeed(speed) {
+      if (currentType === 'local') {
+        video.playbackRate = parseFloat(speed);
+      } else if (currentType === 'yt') {
+        alert('YouTube 嵌入影片速度需由播放器右下角齒輪手動調整喔！');
+      }
+    }
+  </script>
+</body>
+</html>
