@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>💃 舞蹈鏡像練習小工具</title>
+  <title>💃 舞蹈鏡像練習與影音播放器</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: #121212; color: #fff; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
-    h1 { margin-bottom: 20px; font-size: 1.5rem; text-align: center; }
+    body { background: #121212; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
+    h1 { margin-bottom: 20px; font-size: 1.5rem; text-align: center; color: #ffffff; }
     .container { width: 100%; max-width: 800px; background: #1e1e1e; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
     .input-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
     input[type="text"], input[type="file"] { padding: 10px; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: #fff; width: 100%; }
-    .btn { padding: 10px 16px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; background: #3b82f6; color: white; transition: 0.2s; }
-    .btn:hover { background: #2563eb; }
-    .btn-mirror { background: #ec4899; }
-    .btn-mirror:hover { background: #db2777; }
-    .btn-active { background: #10b981 !important; } /* 用於標示開啟狀態 */
     
+    .btn { padding: 10px 16px; border: 1px solid #3b82f6; border-radius: 6px; font-weight: bold; cursor: pointer; background: #2563eb; color: white; transition: 0.2s; }
+    .btn:hover { background: #1d4ed8; }
+    .btn-secondary { background: #374151; border-color: #4b5563; }
+    .btn-secondary:hover { background: #4b5563; }
+    .btn-active { background: #10b981 !important; border-color: #059669 !important; }
+
     .video-wrapper { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
     
-    /* 鏡像翻轉核心 CSS (全螢幕時依然有效) */
     video.mirrored, iframe.mirrored {
       transform: scaleX(-1);
     }
@@ -28,37 +28,50 @@
     .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-top: 15px; }
     .control-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     select { padding: 8px; border-radius: 6px; background: #2a2a2a; color: white; border: 1px solid #333; }
+
+    /* 版本歷程樣式 */
+    .changelog-section { margin-top: 30px; width: 100%; max-width: 800px; background: #181818; padding: 15px 20px; border-radius: 8px; border: 1px solid #282828; }
+    .changelog-title { font-size: 0.95rem; font-weight: bold; color: #9ca3af; margin-bottom: 8px; }
+    .changelog-item { font-size: 0.85rem; color: #6b7280; line-height: 1.5; }
+    .changelog-item ul { margin-left: 20px; margin-top: 4px; }
   </style>
 </head>
 <body>
 
-  <h1>💃 舞蹈鏡像播放器 (Dance Mirror)</h1>
+  <h1>💃 舞蹈鏡像練習與影音播放器</h1>
 
   <div class="container">
     <div class="input-group">
-      <input type="file" id="localVideo" accept="video/*">
+      <label style="font-size: 0.85rem; color: #aaa;">選擇本地影片或 MP3 音訊檔：</label>
+      <input type="file" id="localVideo" accept="video/*,audio/*">
+      
+      <label style="font-size: 0.85rem; color: #aaa; margin-top: 5px;">貼上 YouTube 影片網址：</label>
       <div style="display: flex; gap: 8px;">
-        <input type="text" id="ytUrl" placeholder="貼上 YouTube 影片網址...">
+        <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=...">
         <button class="btn" onclick="loadYouTube()">載入 YT</button>
+      </div>
+      
+      <div style="display: flex; gap: 8px; margin-top: 5px;">
+        <button class="btn btn-secondary" style="font-size: 0.8rem; width: 100%;" onclick="downloadYT('mp4')">📥 下載 YT 影片 (MP4)</button>
+        <button class="btn btn-secondary" style="font-size: 0.8rem; width: 100%;" onclick="downloadYT('mp3')">🎵 下載 YT 音訊 (MP3)</button>
       </div>
     </div>
 
-    <!-- 影片包覆容器，全螢幕會針對這裡放大 -->
     <div class="video-wrapper" id="videoWrapper">
       <video id="myVideo" controls style="display:none;"></video>
       <iframe id="ytPlayer" style="display:none;" allow="autoplay; fullscreen" allowfullscreen></iframe>
-      <div id="placeholder" style="color: #888;">請選擇本地影片或輸入 YouTube 網址</div>
+      <div id="placeholder" style="color: #888;">請選擇本地影音檔或載入 YouTube 網址</div>
     </div>
 
     <div class="controls">
       <div class="control-row">
-        <button class="btn btn-mirror" onclick="toggleMirror()">🪞 鏡像翻轉 (Off)</button>
-        <button class="btn" id="loopBtn" onclick="toggleLoop()">🔁 循環播放 (Off)</button>
-        <button class="btn" onclick="toggleFullscreen()">⛶ 全螢幕</button>
+        <button class="btn btn-secondary" id="mirrorBtn" onclick="toggleMirror()">🪞 鏡像翻轉 (Off)</button>
+        <button class="btn btn-secondary" id="loopBtn" onclick="toggleLoop()">🔁 循環播放 (Off)</button>
+        <button class="btn btn-secondary" onclick="toggleFullscreen()">⛶ 全螢幕</button>
       </div>
       
       <div class="control-row">
-        <label>播放速度：</label>
+        <label style="font-size: 0.9rem;">播放速度：</label>
         <select id="speedSelect" onchange="changeSpeed(this.value)">
           <option value="0.5">0.5x (慢速)</option>
           <option value="0.75">0.75x (稍慢)</option>
@@ -69,6 +82,20 @@
     </div>
   </div>
 
+  <!-- 修改歷程說明 -->
+  <div class="changelog-section">
+    <div class="changelog-title">📜 修改歷程紀錄 (Changelog)</div>
+    <div class="changelog-item">
+      <strong>v1.0 (2026-10-23)</strong>
+      <ul>
+        <li>創立專案：實現本地影片與 YouTube 嵌入鏡像播放器。</li>
+        <li>介面調整：優化按鈕配色（替換桃紅色為整體一致的色調）。</li>
+        <li>功能擴充：新增 ⛶ 全螢幕（維持鏡像）、🔁 循環播放、0.5x~1.25x 播放速度調節。</li>
+        <li>音訊與下載：新增本地 MP3 音訊播放支援與 YouTube MP4/MP3 外部捷徑轉跳下載功能。</li>
+      </ul>
+    </div>
+  </div>
+
   <script>
     const video = document.getElementById('myVideo');
     const ytPlayer = document.getElementById('ytPlayer');
@@ -76,9 +103,9 @@
     const videoWrapper = document.getElementById('videoWrapper');
     let isMirrored = false;
     let isLooped = false;
-    let currentType = null; // 'local' or 'yt'
+    let currentType = null;
 
-    // 本地影片載入
+    // 本地影音載入 (支援 MP4, MP3 等)
     document.getElementById('localVideo').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (file) {
@@ -100,7 +127,6 @@
 
       if (match && match[2].length === 11) {
         const videoId = match[2];
-        // 加上 loop=1 與 playlist 參數支援 YouTube 循環
         let ytSrc = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
         if (isLooped) {
           ytSrc += `&loop=1&playlist=${videoId}`;
@@ -115,10 +141,26 @@
       }
     }
 
+    // YouTube 下載轉跳助手
+    function downloadYT(type) {
+      const urlInput = document.getElementById('ytUrl').value;
+      if (!urlInput) {
+        alert('請先輸入 YouTube 網址！');
+        return;
+      }
+      // 利用第三方服務帶入網址進行下載轉跳
+      const cleanUrl = encodeURIComponent(urlInput);
+      if (type === 'mp3') {
+        window.open(`https://y2mate.is/?url=${cleanUrl}`, '_blank');
+      } else {
+        window.open(`https://y2mate.is/?url=${cleanUrl}`, '_blank');
+      }
+    }
+
     // 鏡像切換
     function toggleMirror() {
       isMirrored = !isMirrored;
-      const btn = document.querySelector('.btn-mirror');
+      const btn = document.getElementById('mirrorBtn');
       if (isMirrored) {
         video.classList.add('mirrored');
         ytPlayer.classList.add('mirrored');
@@ -145,13 +187,12 @@
         btn.classList.remove('btn-active');
         btn.textContent = '🔁 循環播放 (Off)';
       }
-      // 如果當前是 YouTube，重新載入以套用循環設定
       if (currentType === 'yt') {
         loadYouTube();
       }
     }
 
-    // 全螢幕功能（維持鏡像關鍵：對整個外框 wrapper 進行全螢幕）
+    // 全螢幕
     function toggleFullscreen() {
       if (!document.fullscreenElement) {
         if (videoWrapper.requestFullscreen) {
@@ -171,7 +212,7 @@
       if (currentType === 'local') {
         video.playbackRate = parseFloat(speed);
       } else if (currentType === 'yt') {
-        alert('YouTube 嵌入影片速度需由播放器右下角齒輪手動調整喔！');
+        alert('YouTube 嵌入影片速度需由播放器右下角 ⚙️ 齒輪手動調整喔！');
       }
     }
   </script>
