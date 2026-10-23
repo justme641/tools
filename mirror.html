@@ -16,6 +16,8 @@
     .btn:hover { background: #1d4ed8; }
     .btn-secondary { background: #374151; border-color: #4b5563; }
     .btn-secondary:hover { background: #4b5563; }
+    .btn-download { background: #059669; border-color: #047857; } /* 專用下載綠色 */
+    .btn-download:hover { background: #047857; }
     .btn-active { background: #10b981 !important; border-color: #059669 !important; }
 
     .video-wrapper { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
@@ -48,12 +50,12 @@
       <label style="font-size: 0.85rem; color: #aaa; margin-top: 5px;">貼上 YouTube 影片網址：</label>
       <div style="display: flex; gap: 8px;">
         <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=...">
-        <button class="btn" onclick="loadYouTube()">載入 YT</button>
+        <button class="btn" onclick="loadYouTube()">載入 YT 播放</button>
       </div>
       
+      <!-- 極簡無廣告下載轉跳按鈕 -->
       <div style="display: flex; gap: 8px; margin-top: 5px;">
-        <button class="btn btn-secondary" style="font-size: 0.8rem; width: 100%;" onclick="downloadYT('mp4')">📥 下載 YT 影片 (MP4)</button>
-        <button class="btn btn-secondary" style="font-size: 0.8rem; width: 100%;" onclick="downloadYT('mp3')">🎵 下載 YT 音訊 (MP3)</button>
+        <button class="btn btn-download" style="font-size: 0.85rem; width: 100%;" onclick="openCleanDownload()">📥 一鍵取得 YT 影音檔 (無廣告通道)</button>
       </div>
     </div>
 
@@ -86,12 +88,13 @@
   <div class="changelog-section">
     <div class="changelog-title">📜 修改歷程紀錄 (Changelog)</div>
     <div class="changelog-item">
-      <strong>v1.0 (2026-10-23)</strong>
+      <strong>v1.1 (2026-10-23)</strong>
       <ul>
-        <li>創立專案：實現本地影片與 YouTube 嵌入鏡像播放器。</li>
-        <li>介面調整：優化按鈕配色（替換桃紅色為整體一致的色調）。</li>
-        <li>功能擴充：新增 ⛶ 全螢幕（維持鏡像）、🔁 循環播放、0.5x~1.25x 播放速度調節。</li>
-        <li>音訊與下載：新增本地 MP3 音訊播放支援與 YouTube MP4/MP3 外部捷徑轉跳下載功能。</li>
+        <li>介面優化：整合無廣告、極簡的 YouTube 影音取得通道按鈕，提升操作流暢度。</li>
+      </ul>
+      <strong style="display:inline-block; margin-top:6px;">v1.0 (2026-10-23)</strong>
+      <ul>
+        <li>創立專案：實現本地影音與 YouTube 嵌入鏡像播放器、全螢幕、循環播放及速度調節。</li>
       </ul>
     </div>
   </div>
@@ -105,7 +108,7 @@
     let isLooped = false;
     let currentType = null;
 
-    // 本地影音載入 (支援 MP4, MP3 等)
+    // 本地影音載入
     document.getElementById('localVideo').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (file) {
@@ -141,20 +144,16 @@
       }
     }
 
-    // YouTube 下載轉跳助手
-    function downloadYT(type) {
+    // 開啟無廣告極簡下載通道
+    function openCleanDownload() {
       const urlInput = document.getElementById('ytUrl').value;
       if (!urlInput) {
-        alert('請先輸入 YouTube 網址！');
+        alert('請先在上方輸入框貼上 YouTube 網址！');
         return;
       }
-      // 利用第三方服務帶入網址進行下載轉跳
+      // 使用開源乾淨的 cobalt 工具，並自動帶入網址
       const cleanUrl = encodeURIComponent(urlInput);
-      if (type === 'mp3') {
-        window.open(`https://y2mate.is/?url=${cleanUrl}`, '_blank');
-      } else {
-        window.open(`https://y2mate.is/?url=${cleanUrl}`, '_blank');
-      }
+      window.open(`https://cobalt.tools/?u=${cleanUrl}`, '_blank');
     }
 
     // 鏡像切換
