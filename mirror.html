@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>影音播放器</title>
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#121212">
@@ -162,7 +163,7 @@
     <div class="input-group">
       <label class="small">選擇本機影片或音訊檔 (MP3, M4A 等，可一次選多個)：</label>
       <input type="file" id="localVideo" accept="video/*,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.mp4,.webm,.mkv" multiple>
-      <div class="row" style="gap:2px"><label class="small"><input type="checkbox" id="saveLib" checked> 同時存入「<a href="#" id="libLink">媒體庫</a>」</label><button type="button" class="linkbtn" id="moreBtn">更多 ▾</button></div>
+      <div class="row" style="gap:2px"><label class="small"><input type="checkbox" id="saveLib" checked> 同時存入「媒體庫」</label><button type="button" class="linkbtn" id="moreBtn">更多 ▾</button></div>
       <div class="hint" id="moreInfo" hidden>
         <div>（記在這台裝置的瀏覽器內，下次不用重新選檔。檔案存在瀏覽器的網站資料裡，不是手機的資料夾，所以在檔案管理員看不到；清除此網站資料就會消失。）</div>
         <div>下載音訊可以讓你聽歌不中斷</div>
@@ -297,8 +298,9 @@
         <li>播放接續：修正切換電腦版／手機版後歌曲消失的問題（重新載入初期不再把位置覆寫成 0）；接續時間放寬為 30 分鐘，暫停中的影音也會回到原位置；播放 YouTube 時加入無聲保活音訊，讓通知欄的播放鍵在被系統暫停後仍保留（仍取決於手機與瀏覽器，無法保證）。</li>
         <li>背景播放修正：取消 YouTube 無聲保活音訊與自動重播（會讓通知欄按鍵無反應、或把使用者按的暫停又播回去）；YouTube 的通知欄改回由 YouTube 播放器自行控制，本機檔案／Podcast 仍由本頁控制。</li>
         <li>Podcast 來源記憶與快取：節目會記住成功的來源（RSS 優先，其次 iTunes、rss2json）與單集清單，之後點開直接讀快取；「⟳」改為「切換來源／重新整理」，可手動切換 RSS／iTunes 或清除快取重抓。</li>
-        <li>修改歷程預設收合；「同時存入媒體庫」的「媒體庫」可點擊直接開啟媒體庫檢視，並說明媒體庫存放在瀏覽器網站資料內。</li>
-        <li>播放清單：「主分類 / 次分類」靠左、長度靠右；Podcast 來源不再顯示灰色來源字。「▶ 播放全部」按一次後會切換為「▶ 播放單曲」，兩種都是循環播放。</li>
+        <li>YouTube 錯誤 153：加入來源網址（referrer／origin）設定，並在發生 153 時提示請由正式網址開啟。</li>
+        <li>修改歷程預設收合；更多裡補充說明媒體庫存放在瀏覽器網站資料內（檔案管理員看不到），已取消「媒體庫」連結。</li>
+        <li>播放清單：「主分類 / 次分類」靠左、長度靠右；Podcast 來源不再顯示灰色來源字。「▶ 播放全部」短按播放，長按切換為「▶ 播放單曲」（再長按切回），兩種都是循環播放。</li>
         <li>A-B：「設 A 起點／設 B 終點」改為 A、B 圖示；新增 ✂ 剪輯，將 A-B 區段存成音訊（WAV）放進媒體庫（本機檔案與可讀取的連結適用，YouTube／Instagram 不適用）。</li>
         <li>文字：YTDLnis 提示改為「下載音訊可以讓你聽歌不中斷／僅 Android 適用」，並簡化下載連結文字。</li>
         <li>播放清單：每首歌曲以灰字顯示「主分類 / 次分類」與長度（靠右）；清單標題顯示目前篩選的合計長度（部分長度未知時於後加「+」）。長度在播放過一次後自動記錄，本機檔案會於背景補算。</li>
@@ -674,7 +676,7 @@ function loadYT(id,start){
     const w=ytWant;
     if(!ytPlayer){
       ytPlayer=new YT.Player('ytPlayer',{
-        width:'100%',height:'100%',playerVars:{playsinline:1,rel:0},
+        width:'100%',height:'100%',playerVars:Object.assign({playsinline:1,rel:0},/^https?:$/.test(location.protocol)?{origin:location.origin}:{}),
         events:{
           onReady:()=>{ytReady=true;ytLoad(ytWant);applyRate();},
           onStateChange:e=>{
@@ -683,7 +685,7 @@ function loadYT(id,start){
             if(e.data===S.PLAYING){try{recordDur(ytPlayer.getDuration());}catch(_){}errStreak=0;applyRate();wantPlay=true;}
             if(e.data===S.PAUSED)wantPlay=false;
           },
-          onError:()=>{toast('此 YouTube 影片無法播放（可能禁止嵌入或已下架）');if(queue)skipNext();}
+          onError:ev=>{toast(ev&&ev.data===153?'YouTube 錯誤 153：嵌入播放器要求網頁有正式網址。請從 https://justme641.github.io/tools/mirror.html 開啟（不要用檔案或預覽視窗開啟）。':'此 YouTube 影片無法播放（可能禁止嵌入或已下架）');if(queue)skipNext();}
         }
       });
     }else if(ytReady){ytLoad(w);applyRate();}
@@ -1089,14 +1091,24 @@ function morePanel(btns){
 /* 播放全部／播放單曲：按一次以目前方式播放並切換下次的方式；兩種都是循環 */
 function playModeBtn(getItems){
   const one=prefs.plMode==='one';
-  return h('button',{class:'primary',onclick:()=>{
+  let timer=0,fired=false;
+  const btn=h('button',{class:'primary',title:'短按播放；長按切換「播放全部／播放單曲」',onclick:()=>{
+    if(fired){fired=false;return;}
     const items=getItems();if(!items.length){toast('清單是空的');return;}
     if(one){
       const k=cur&&keyOf(cur);const it=items.find(x=>keyOf(x)===k)||items[0];
       playQueue([it],0,true);toast('單曲循環播放');
     }else{playQueue(items,0,true);toast('清單循環播放');}
-    prefs.plMode=one?'all':'one';savePrefs();renderPL();
   },text:one?'▶ 播放單曲':'▶ 播放全部'});
+  const start=()=>{fired=false;clearTimeout(timer);timer=setTimeout(()=>{
+    fired=true;prefs.plMode=one?'all':'one';savePrefs();
+    toast('已切換為「'+(one?'播放全部':'播放單曲')+'」（長按可再切換）');renderPL();
+  },600);};
+  const stop=()=>clearTimeout(timer);
+  btn.addEventListener('pointerdown',start);
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,stop));
+  btn.addEventListener('contextmenu',e=>e.preventDefault());
+  return btn;
 }
 function renderPL(){
   const root=$('#plRoot');root.replaceChildren();
@@ -1684,7 +1696,6 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==='pod')renderPod();
 });
 $('#moreCtlBtn').onclick=()=>{const b=$('#moreCtl');b.hidden=!b.hidden;$('#moreCtlBtn').setAttribute('aria-expanded',String(!b.hidden));};
-$('#libLink').onclick=e=>{e.preventDefault();e.stopPropagation();ui.main=LIB;ui.sub=ALL;savePrefs();document.querySelector('.tabs button[data-tab=pl]').click();window.scrollTo({top:document.body.scrollHeight*0,behavior:'smooth'});};
 $('#clearUrl').onclick=()=>{const i=$('#ytUrl');i.value='';i.focus();};
 $('#moreBtn').onclick=()=>{
   const box=$('#moreInfo');box.hidden=!box.hidden;
