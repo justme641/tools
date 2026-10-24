@@ -238,7 +238,7 @@
       <li>全螢幕時，畫面右上角有「✕ 離開全螢幕」與「↔ 鏡像」按鈕。</li>
       <li>鏡像開啟時，影片內建控制列也會一併左右翻轉。</li>
       <li>Instagram 影片僅能用其內建播放鈕，速度、A-B、跳轉、循環不適用。</li>
-      <li>背景播放：本機檔案與 Podcast 音訊通常可直接在背景播放，並可用通知欄／鎖定畫面的控制列暫停、播放、前後 10 秒。YouTube 在手機瀏覽器切到背景或鎖屏時，常被 YouTube 暫停（網頁無法改變這點，也無法替你切換瀏覽器模式）；本頁會自動嘗試恢復播放，且通知欄的 ▶ 可控制 YouTube。若仍被暫停，可試試：Chrome 選單勾選「電腦版網站」→ 播放 → 回到主畫面 → 下拉通知欄按 ▶。通知欄控制列需在播放中才會出現；本頁在播放 YouTube 時會同步放一段無聲音訊保持通知欄不消失。切換模式或重新整理後，會自動接續上次的影音與位置（30 分鐘內，原本若在播放會繼續播放，暫停中則停在原位置）。</li>
+      <li>背景播放：本機檔案與 Podcast 音訊通常可直接在背景播放，通知欄／鎖定畫面可暫停、播放、前後 10 秒。YouTube 由 YouTube 自己的播放器負責，手機瀏覽器切到背景時常被暫停（網頁無法改變，也無法替你切換瀏覽器模式）；若被暫停，可試試：Chrome 選單勾選「電腦版網站」→ 播放 → 回到主畫面 → 下拉通知欄按 ▶。切換模式或重新整理後，會自動接續上次的影音與位置（30 分鐘內，原本在播放會繼續播放，暫停中則停在原位置）。</li>
       <li>清單項目前的灰字是來源；本機檔案在這台裝置的媒體庫才能直接播放，否則會請你選檔一次。</li>
     </ul>
 
@@ -286,6 +286,7 @@
         <li>Podcast：☆／⬇ 移到單集日期與長度的下一列，標題維持正常顯示。</li>
         <li>介面：移除網址欄上方的「（或影音直連網址）」文字。</li>
         <li>播放接續：修正切換電腦版／手機版後歌曲消失的問題（重新載入初期不再把位置覆寫成 0）；接續時間放寬為 30 分鐘，暫停中的影音也會回到原位置；播放 YouTube 時加入無聲保活音訊，讓通知欄的播放鍵在被系統暫停後仍保留（仍取決於手機與瀏覽器，無法保證）。</li>
+        <li>背景播放修正：取消 YouTube 無聲保活音訊與自動重播（會讓通知欄按鍵無反應、或把使用者按的暫停又播回去）；YouTube 的通知欄改回由 YouTube 播放器自行控制，本機檔案／Podcast 仍由本頁控制。</li>
         <li>Podcast 來源記憶與快取：節目會記住成功的來源（RSS 優先，其次 iTunes、rss2json）與單集清單，之後點開直接讀快取；「⟳」改為「切換來源／重新整理」，可手動切換 RSS／iTunes 或清除快取重抓。</li>
       </ul>
     </div>
@@ -624,23 +625,7 @@ function detect(v){
 }
 
 
-/* 無聲保活音訊：讓瀏覽器維持「正在播放媒體」的狀態，YouTube 被系統暫停後通知欄仍保留 ▶ 鍵 */
-let keepAudio=null;
-function keepStart(){
-  try{
-    if(!keepAudio){
-      const n=8000,b=new ArrayBuffer(44+n*2),v=new DataView(b);
-      const w=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i));};
-      w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
-      v.setUint32(24,8000,true);v.setUint32(28,16000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
-      keepAudio=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));keepAudio.loop=true;
-    }
-    keepAudio.play().catch(()=>{});
-  }catch(e){}
-}
-function keepStop(){try{if(keepAudio)keepAudio.pause();}catch(e){}}
 function stopAll(){
-  keepStop();
   try{video.pause();}catch(e){}
   video.removeAttribute('src');video.load();
   if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null;}
@@ -673,8 +658,8 @@ function loadYT(id,start){
           onStateChange:e=>{
             const S=YT.PlayerState;
             if(e.data===S.ENDED)onEnded();
-            if(e.data===S.PLAYING){keepStart();errStreak=0;applyRate();wantPlay=true;bgTry=0;setPBState('playing');}
-            if(e.data===S.PAUSED){setPBState('paused');if(document.hidden&&wantPlay)setTimeout(bgResume,300);else wantPlay=false;}
+            if(e.data===S.PLAYING){errStreak=0;applyRate();wantPlay=true;}
+            if(e.data===S.PAUSED)wantPlay=false;
           },
           onError:()=>{toast('此 YouTube 影片無法播放（可能禁止嵌入或已下架）');if(queue)skipNext();}
         }
@@ -700,7 +685,7 @@ function playItem(it,auto,seek){
   if(it.type==='youtube'){
     const id=ytId(it.url);if(!id){toast('網址格式有誤');return;}
     const sk=pendingSeek;pendingSeek=0;resumeCue=quiet&&!resumePlay;
-    showSurface('yt');loadYT(id,sk);if(!quiet)keepStart();
+    showSurface('yt');loadYT(id,sk);
   }else if(it.type==='ig'){
     const g=igParse(it.url);
     if(!g||!g.code){toast('Instagram 網址格式有誤');return;}
@@ -891,35 +876,24 @@ function tryResume(){
 }
 
 /* 手機鎖定畫面／通知欄控制（YouTube 也能控制），切到背景被暫停時自動嘗試恢復 */
-let wantPlay=false,bgTry=0;
+let wantPlay=false;
 function setPBState(st){try{if('mediaSession' in navigator)navigator.mediaSession.playbackState=st;}catch(e){}}
-function bgResume(){
-  if(!wantPlay||!document.hidden||!cur||cur.type==='ig')return;
-  let paused;
-  if(isYT()){try{paused=ytPlayer.getPlayerState()!==1;}catch(e){return;}}
-  else paused=video.paused&&!video.ended;
-  if(!paused){bgTry=0;return;}
-  if(bgTry++>=4)return;
-  try{if(isYT())ytPlayer.playVideo();else video.play().catch(()=>{});}catch(e){}
-  setTimeout(bgResume,800);
-}
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){bgTry=0;setTimeout(bgResume,500);setTimeout(bgResume,2000);}
-});
-video.addEventListener('play',()=>{wantPlay=true;bgTry=0;setPBState('playing');});
-video.addEventListener('pause',()=>{
-  setPBState('paused');
-  if(video.ended)return;
-  if(document.hidden&&wantPlay)setTimeout(bgResume,300);else wantPlay=false;
-});
-function mPlay(){wantPlay=true;bgTry=0;if(isYT()){keepStart();ytPlayer.playVideo();setPBState('playing');}else video.play().catch(()=>{});}
-function mPause(){wantPlay=false;if(isYT()){ytPlayer.pauseVideo();setPBState('paused');}else video.pause();}
+video.addEventListener('play',()=>{wantPlay=true;setPBState('playing');});
+video.addEventListener('pause',()=>{setPBState('paused');if(!video.ended)wantPlay=false;});
+function mPlay(){wantPlay=true;video.play().catch(()=>{});}
+function mPause(){wantPlay=false;video.pause();}
 const mSeek=d=>()=>{if(cur&&cur.type!=='ig')seekTo(Math.max(0,getTime()+d));};
 function updateMeta(){
   document.title=cur&&cur.title?cur.title+' - 影音播放器':'影音播放器';
   if(!('mediaSession' in navigator))return;
-  try{navigator.mediaSession.metadata=new MediaMetadata({title:(cur&&cur.title)||'影音播放器',artwork:(cur&&cur.image)?[{src:cur.image}]:[]});}catch(e){}
   const set=(a,f)=>{try{navigator.mediaSession.setActionHandler(a,f);}catch(e){}};
+  if(cur&&cur.type==='youtube'){
+    /* YouTube 在嵌入的播放器內，通知欄由 YouTube 自己控制；本頁不接手，避免按鍵無反應 */
+    try{navigator.mediaSession.metadata=null;}catch(e){}
+    ['play','pause','seekbackward','seekforward','previoustrack','nexttrack'].forEach(a=>set(a,null));
+    return;
+  }
+  try{navigator.mediaSession.metadata=new MediaMetadata({title:(cur&&cur.title)||'影音播放器',artwork:(cur&&cur.image)?[{src:cur.image}]:[]});}catch(e){}
   set('play',mPlay);set('pause',mPause);
   set('seekbackward',mSeek(-10));set('seekforward',mSeek(10));
   set('previoustrack',queue?prevItem:null);
