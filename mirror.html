@@ -163,7 +163,7 @@
         <div>🔗 <a href="https://github.com/deniscerri/ytdlnis/releases" target="_blank" rel="noopener">點此前往 GitHub 官網下載 APK 檔</a>（僅 Android 適用）</div>
       </div>
 
-      <label class="small" style="margin-top: 5px;">貼上 YouTube／Instagram 影片網址（或影音直連網址）：</label>
+      <label class="small" style="margin-top: 5px;">貼上 YouTube／Instagram 影片網址：</label>
       <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
       <div class="urlbtns">
         <button class="primary" id="loadUrl">▶ 載入播放</button>
@@ -238,7 +238,7 @@
       <li>全螢幕時，畫面右上角有「✕ 離開全螢幕」與「↔ 鏡像」按鈕。</li>
       <li>鏡像開啟時，影片內建控制列也會一併左右翻轉。</li>
       <li>Instagram 影片僅能用其內建播放鈕，速度、A-B、跳轉、循環不適用。</li>
-      <li>背景播放：本機檔案與 Podcast 音訊通常可直接在背景播放，並可用通知欄／鎖定畫面的控制列暫停、播放、前後 10 秒。YouTube 在手機瀏覽器切到背景或鎖屏時，常被 YouTube 暫停（網頁無法改變這點，也無法替你切換瀏覽器模式）；本頁會自動嘗試恢復播放，且通知欄的 ▶ 可控制 YouTube。若仍被暫停，可試試：Chrome 選單勾選「電腦版網站」→ 播放 → 回到主畫面 → 下拉通知欄按 ▶。切換模式或重新整理後，會自動接續上次的影音與位置（5 分鐘內）。</li>
+      <li>背景播放：本機檔案與 Podcast 音訊通常可直接在背景播放，並可用通知欄／鎖定畫面的控制列暫停、播放、前後 10 秒。YouTube 在手機瀏覽器切到背景或鎖屏時，常被 YouTube 暫停（網頁無法改變這點，也無法替你切換瀏覽器模式）；本頁會自動嘗試恢復播放，且通知欄的 ▶ 可控制 YouTube。若仍被暫停，可試試：Chrome 選單勾選「電腦版網站」→ 播放 → 回到主畫面 → 下拉通知欄按 ▶。通知欄控制列需在播放中才會出現；本頁在播放 YouTube 時會同步放一段無聲音訊保持通知欄不消失。切換模式或重新整理後，會自動接續上次的影音與位置（30 分鐘內，原本若在播放會繼續播放，暫停中則停在原位置）。</li>
       <li>清單項目前的灰字是來源；本機檔案在這台裝置的媒體庫才能直接播放，否則會請你選檔一次。</li>
     </ul>
 
@@ -284,6 +284,9 @@
         <li>版面調整：「更多控制」改為控制列上的 ⚙ 圖示按鈕，不再多占一列；啟用鏡像、變速或 A-B 時圖示會亮起。</li>
         <li>播放清單：歌曲清單上方只保留「播放全部」「目前播放」，匯入檔案、網址、編輯、匯出／匯入清單與上次匯出時間，併入「更多」展開；備份逾期時「更多」會顯示 ⚠。</li>
         <li>Podcast：☆／⬇ 移到單集日期與長度的下一列，標題維持正常顯示。</li>
+        <li>介面：移除網址欄上方的「（或影音直連網址）」文字。</li>
+        <li>播放接續：修正切換電腦版／手機版後歌曲消失的問題（重新載入初期不再把位置覆寫成 0）；接續時間放寬為 30 分鐘，暫停中的影音也會回到原位置；播放 YouTube 時加入無聲保活音訊，讓通知欄的播放鍵在被系統暫停後仍保留（仍取決於手機與瀏覽器，無法保證）。</li>
+        <li>Podcast 來源記憶與快取：節目會記住成功的來源（RSS 優先，其次 iTunes、rss2json）與單集清單，之後點開直接讀快取；「⟳」改為「切換來源／重新整理」，可手動切換 RSS／iTunes 或清除快取重抓。</li>
       </ul>
     </div>
     <div class="changelog-item">
@@ -447,7 +450,7 @@ async function resolveLocal(it){
 
 /* ---------- 播放器 ---------- */
 const video=$('#myVideo'),wrap=$('#videoWrapper'),igFrame=$('#igFrame');
-let cur=null,queue=null,playingKey='',ytPlayer=null,ytReady=false,ytWant=null,objUrl=null,pendingLocal=null,errStreak=0,playTok=0;
+let resumePlay=true,cur=null,queue=null,playingKey='',ytPlayer=null,ytReady=false,ytWant=null,objUrl=null,pendingLocal=null,errStreak=0,playTok=0;
 const ytCbs=[];
 const keyOf=it=>it.type==='local'?'L:'+libKey(it):it.url;
 
@@ -621,7 +624,23 @@ function detect(v){
 }
 
 
+/* 無聲保活音訊：讓瀏覽器維持「正在播放媒體」的狀態，YouTube 被系統暫停後通知欄仍保留 ▶ 鍵 */
+let keepAudio=null;
+function keepStart(){
+  try{
+    if(!keepAudio){
+      const n=8000,b=new ArrayBuffer(44+n*2),v=new DataView(b);
+      const w=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i));};
+      w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+      v.setUint32(24,8000,true);v.setUint32(28,16000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+      keepAudio=new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'})));keepAudio.loop=true;
+    }
+    keepAudio.play().catch(()=>{});
+  }catch(e){}
+}
+function keepStop(){try{if(keepAudio)keepAudio.pause();}catch(e){}}
 function stopAll(){
+  keepStop();
   try{video.pause();}catch(e){}
   video.removeAttribute('src');video.load();
   if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null;}
@@ -640,25 +659,27 @@ function ensureYT(cb){
   }
 }
 window.onYouTubeIframeAPIReady=()=>{ytCbs.splice(0).forEach(f=>f());};
+let resumeCue=false;
+function ytLoad(w){const o={videoId:w.id,startSeconds:w.start};if(w.cue)ytPlayer.cueVideoById(o);else ytPlayer.loadVideoById(o);}
 function loadYT(id,start){
-  ytWant={id,start:start||0};
+  ytWant={id,start:start||0,cue:(typeof resumeCue!=='undefined'&&resumeCue)};resumeCue=false;
   ensureYT(()=>{
     const w=ytWant;
     if(!ytPlayer){
       ytPlayer=new YT.Player('ytPlayer',{
         width:'100%',height:'100%',playerVars:{playsinline:1,rel:0},
         events:{
-          onReady:()=>{ytReady=true;ytPlayer.loadVideoById({videoId:ytWant.id,startSeconds:ytWant.start});applyRate();},
+          onReady:()=>{ytReady=true;ytLoad(ytWant);applyRate();},
           onStateChange:e=>{
             const S=YT.PlayerState;
             if(e.data===S.ENDED)onEnded();
-            if(e.data===S.PLAYING){errStreak=0;applyRate();wantPlay=true;bgTry=0;setPBState('playing');}
+            if(e.data===S.PLAYING){keepStart();errStreak=0;applyRate();wantPlay=true;bgTry=0;setPBState('playing');}
             if(e.data===S.PAUSED){setPBState('paused');if(document.hidden&&wantPlay)setTimeout(bgResume,300);else wantPlay=false;}
           },
           onError:()=>{toast('此 YouTube 影片無法播放（可能禁止嵌入或已下架）');if(queue)skipNext();}
         }
       });
-    }else if(ytReady){ytPlayer.loadVideoById({videoId:w.id,startSeconds:w.start});applyRate();}
+    }else if(ytReady){ytLoad(w);applyRate();}
   });
 }
 let pendingSeek=0;
@@ -666,6 +687,7 @@ const RESUME_MSG='已接續上次播放位置；若沒有自動播放，請按�
 function playItem(it,auto,seek){
   const tok=++playTok;
   const quiet=auto==='resume';
+  if(!quiet)resumePlay=true;
   stopAll();cur=it;playingKey=keyOf(it);curBlob=null;hideCover();
   pendingSeek=seek>0?seek:0;
   wrap.classList.toggle('ig',it.type==='ig');
@@ -673,12 +695,12 @@ function playItem(it,auto,seek){
   const nl=$('#nowLink');
   if(it.type==='ig'){nl.href=it.url;nl.hidden=false;}else nl.hidden=true;
   syncLoop();updateMeta();refreshLists();
-  const tryPlay=()=>video.play().catch(()=>{if(quiet)toast(RESUME_MSG);});
-  if(quiet&&it.type!=='ig')toast(RESUME_MSG);
+  const tryPlay=()=>{if(quiet&&!resumePlay)return;video.play().catch(()=>{if(quiet)toast(RESUME_MSG);});};
+  if(quiet&&it.type!=='ig'&&resumePlay)toast(RESUME_MSG);
   if(it.type==='youtube'){
     const id=ytId(it.url);if(!id){toast('網址格式有誤');return;}
-    const sk=pendingSeek;pendingSeek=0;
-    showSurface('yt');loadYT(id,sk);
+    const sk=pendingSeek;pendingSeek=0;resumeCue=quiet&&!resumePlay;
+    showSurface('yt');loadYT(id,sk);if(!quiet)keepStart();
   }else if(it.type==='ig'){
     const g=igParse(it.url);
     if(!g||!g.code){toast('Instagram 網址格式有誤');return;}
@@ -841,8 +863,11 @@ function saveResume(){
     /* 本機檔案若不在媒體庫內，重新整理後就找不到檔案，所以不記錄 */
     if(cur.type==='local'&&libReady&&!libHas(cur)){localStorage.removeItem(RKEY);return;}
     let t=0;
+    /* 播放器還沒就緒（剛重新載入）時不覆寫，避免把位置存成 0 */
+    if(cur.type==='youtube'&&!ytReady)return;
+    if(cur.type!=='youtube'&&cur.type!=='ig'&&video.readyState===0)return;
     if(cur.type!=='ig')t=(isYT()?ytPlayer.getCurrentTime():video.currentTime)||0;
-    localStorage.setItem(RKEY,JSON.stringify({it:cur,t:Math.floor(t),playing:isPlaying(),qi:queue?queue.i:-1,at:Date.now()}));
+    localStorage.setItem(RKEY,JSON.stringify({it:cur,t:Math.floor(t),playing:isPlaying()||wantPlay,qi:queue?queue.i:-1,at:Date.now()}));
   }catch(e){}
 }
 function saveQueue(){try{if(queue)localStorage.setItem(RQKEY,JSON.stringify(queue.items.slice(0,300)));}catch(e){}}
@@ -851,7 +876,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 window.addEventListener('pagehide',saveResume);
 function tryResume(){
   let r;try{r=JSON.parse(localStorage.getItem(RKEY));}catch(e){}
-  if(!r||!r.it||!r.playing||Date.now()-r.at>5*60*1000)return;
+  if(!r||!r.it||Date.now()-r.at>30*60*1000)return;
   const it=r.it;
   if(!['youtube','ig','url','local'].includes(it.type))return;
   if(it.type==='local'?!it.name:!it.url)return;
@@ -861,6 +886,7 @@ function tryResume(){
       if(Array.isArray(items)&&items[r.qi]&&keyOf(items[r.qi])===keyOf(it))queue={items,i:r.qi};
     }catch(e){}
   }
+  resumePlay=!!r.playing;
   playItem(it,'resume',Number(r.t)||0);
 }
 
@@ -886,8 +912,8 @@ video.addEventListener('pause',()=>{
   if(video.ended)return;
   if(document.hidden&&wantPlay)setTimeout(bgResume,300);else wantPlay=false;
 });
-function mPlay(){wantPlay=true;bgTry=0;if(isYT())ytPlayer.playVideo();else video.play().catch(()=>{});}
-function mPause(){wantPlay=false;if(isYT())ytPlayer.pauseVideo();else video.pause();}
+function mPlay(){wantPlay=true;bgTry=0;if(isYT()){keepStart();ytPlayer.playVideo();setPBState('playing');}else video.play().catch(()=>{});}
+function mPause(){wantPlay=false;if(isYT()){ytPlayer.pauseVideo();setPBState('paused');}else video.pause();}
 const mSeek=d=>()=>{if(cur&&cur.type!=='ig')seekTo(Math.max(0,getTime()+d));};
 function updateMeta(){
   document.title=cur&&cur.title?cur.title+' - 影音播放器':'影音播放器';
@@ -1297,26 +1323,51 @@ async function episodesFromJson(feed){
   if(!eps.length)throw new Error('empty');
   return {title:(j.feed&&j.feed.title)||'',image:safeUrl(j.feed&&j.feed.image),eps};
 }
-/* 同時向各來源取資料，先到的先顯示，後到的自動合併補齊（以標題＋發佈日去重） */
-async function refreshPod(p,quiet){
+/* 來源記憶：成功的來源與單集清單存在節目資料內（p.source / p.eps），之後點開直接讀快取，不再重新測試 */
+const SRC_NAME={rss:'RSS 完整來源',itunes:'iTunes（最多約 200 集）',json:'rss2json（約 10 集）'};
+const podSrcLabel=p=>p.source&&SRC_NAME[p.source]?{rss:'RSS',itunes:'iTunes',json:'rss2json'}[p.source]:(p.eps.length?'合併':'');
+async function refreshPod(p,quiet,force){
   if(!quiet)toast('讀取單集中…');
-  let got=0;
-  const apply=info=>{
-    const showImg=info.image||p.image;
-    info.eps.forEach(e=>{if(!e.image||e.image===showImg)delete e.image;});
-    p.eps=mergeEps(p.eps,info.eps);p.at=Date.now();
-    if(!p.image&&info.image)p.image=info.image;
-    if((!p.name||p.name==='Podcast')&&info.title)p.name=info.title;
-    got++;save();
-    if(!$('#tab-pod').hidden)renderPod();
-  };
-  await Promise.all([
-    episodesFromItunes(p).then(apply).catch(()=>{}),
-    episodesFromRss(p.feed).then(apply).catch(()=>{})]);
-  if(!got){try{apply(await episodesFromJson(p.feed));}catch(e){}}
-  if(!got)toast('讀取單集失敗，請稍後再按 ⟳ 重新整理，或刪除後用上方「搜尋」重新訂閱。');
-  else if(!quiet)toast('已更新，共 '+p.eps.length+' 集');
-  else $('#toast').style.display='none';
+  const get={rss:()=>episodesFromRss(p.feed),itunes:()=>episodesFromItunes(p),json:()=>episodesFromJson(p.feed)};
+  /* 指定來源：只試該來源；自動：RSS（建議）→ iTunes → rss2json；已有記憶來源時，先試記憶的來源 */
+  let order=force?[force]:['rss','itunes','json'];
+  if(!force&&p.source&&get[p.source])order=[p.source,...order.filter(x=>x!==p.source)];
+  for(const src of order){
+    try{
+      const info=await get[src]();
+      const showImg=info.image||p.image;
+      info.eps.forEach(e=>{if(!e.image||e.image===showImg)delete e.image;});
+      p.eps=info.eps.sort((x,y)=>(new Date(y.date)||0)-(new Date(x.date)||0)).slice(0,EP_MAX);
+      p.source=src;p.at=Date.now();
+      if(!p.image&&info.image)p.image=info.image;
+      if((!p.name||p.name==='Podcast')&&info.title)p.name=info.title;
+      save();if(!$('#tab-pod').hidden)renderPod();
+      if(!quiet)toast('已更新（來源：'+SRC_NAME[src]+'），共 '+p.eps.length+' 集');
+      else $('#toast').style.display='none';
+      return true;
+    }catch(e){}
+  }
+  toast(force?'「'+SRC_NAME[force]+'」讀取失敗，原有單集資料保持不變，可換其他來源再試。':'讀取單集失敗，請稍後再試，或換個來源。');
+  return false;
+}
+function podSourceMenu(p){
+  const dlg=h('dialog');const form=h('form',{method:'dialog'});
+  const opt=(v,t)=>h('button',{type:'submit',value:v,style:'display:block;width:100%;margin:6px 0;text-align:left',text:t});
+  form.append(
+    h('p',{text:'「'+p.name+'」目前來源：'+(p.source?SRC_NAME[p.source]:'合併（舊版資料）')+'，已快取 '+p.eps.length+' 集'}),
+    opt('auto','🔄 重新整理（建議：先試目前來源，失敗再自動換）'),
+    opt('rss','📡 切換為 RSS 完整來源'),
+    opt('itunes','🍎 切換為 iTunes 來源'),
+    opt('clear','🗑 清除快取並重新抓取（自動挑選來源）'),
+    h('div',{class:'row end',style:'margin-top:8px'},h('button',{type:'button',onclick:()=>dlg.close('cancel'),text:'取消'})));
+  dlg.append(form);document.body.append(dlg);
+  dlg.addEventListener('close',async()=>{
+    const v=dlg.returnValue;dlg.remove();
+    if(v==='auto')refreshPod(p);
+    else if(v==='rss'||v==='itunes')refreshPod(p,false,v);
+    else if(v==='clear'){p.eps=[];p.source='';p.at=0;save();renderPod();refreshPod(p);}
+  });
+  dlg.showModal();
 }
 function addPodcast(p){
   const ex=db.podcasts.find(x=>x.feed===p.feed);
@@ -1326,7 +1377,7 @@ function addPodcast(p){
     if(!ex.eps.length)refreshPod(ex,true);
     return null;
   }
-  const np={id:uid(),name:p.name||'Podcast',feed:p.feed,image:safeUrl(p.image),cid:p.cid?String(p.cid):'',eps:[],at:0};
+  const np={id:uid(),name:p.name||'Podcast',feed:p.feed,image:safeUrl(p.image),cid:p.cid?String(p.cid):'',eps:[],source:'',at:0};
   db.podcasts.push(np);ui.pod=np.id;podPage=1;podQ='';podFav=false;save();renderPod();refreshPod(np,true);return np;
 }
 const fmtDur=d=>!d?'':/^\d+$/.test(d)?fmtT(Number(d)):d;
@@ -1364,7 +1415,7 @@ function renderPod(){
     ui.pod=id;podPage=1;podQ='';podFav=false;renderPod();
     const np=db.podcasts.find(x=>x.id===id);if(np&&!np.eps.length)refreshPod(np,true);
   },{
-    extra:p&&ib('⟳','重新整理（同時向多個來源取得單集）',()=>refreshPod(p)),
+    extra:p&&ib('⟳','切換來源／重新整理',()=>podSourceMenu(p)),
     rename:async()=>{const r=await ask('節目改名',[{key:'n',label:'名稱',value:p.name}]);if(r&&r.n){p.name=r.n;save();renderPod();}},
     up:()=>{if(move(db.podcasts,db.podcasts.indexOf(p),-1)){save();renderPod();}},
     down:()=>{if(move(db.podcasts,db.podcasts.indexOf(p),1)){save();renderPod();}},
@@ -1381,7 +1432,7 @@ function renderPod(){
   const blk=h('div',{class:'block'},
     h('div',{class:'bhead'},
       h('div',{class:'row'},p.image&&h('img',{class:'cover',src:p.image,alt:''}),h('strong',{text:p.name})),
-      h('span',{class:'meta',text:p.at?'更新於 '+new Date(p.at).toLocaleString('zh-TW'):''})),
+      h('span',{class:'meta',text:(podSrcLabel(p)?'來源：'+podSrcLabel(p)+'・':'')+(p.at?'更新於 '+new Date(p.at).toLocaleString('zh-TW'):'')})),
     h('div',{class:'row'},h('div',{class:'grow'},qEp),
       h('label',{class:'small',style:'display:flex;gap:4px;align-items:center;white-space:nowrap'},favCb,'只看收藏 ★')),
     pagerTop,list,pagerBot);
@@ -1403,7 +1454,7 @@ function renderPod(){
       h('span',{class:'meta',text:label}),
       h('button',{class:'ib',disabled:podPage>=pages,onclick:()=>go(podPage+1),text:'下一頁 ▶'})));
     list.replaceChildren();
-    if(!p.eps.length)list.append(h('div',{class:'hint',text:'尚無單集資料，請稍候或按上方 ⟳ 重新整理。'}));
+    if(!p.eps.length)list.append(h('div',{class:'hint',text:'尚無單集資料，請稍候，或按上方 ⟳ 切換來源／重新整理。'}));
     else if(!eps.length)list.append(h('div',{class:'hint',text:'沒有符合條件的單集。'}));
     slice.forEach(ep=>{
       const meta=[fmtDate(ep.date),fmtDur(ep.dur)].filter(Boolean).join('・');
