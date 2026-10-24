@@ -129,8 +129,7 @@
     #moreInfo { background: #252525; border-radius: 6px; padding: 8px 12px; line-height: 1.7; margin: 0; }
     #moreInfo a { color: #3b82f6; font-weight: bold; text-decoration: none; }
     .morectl { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
-    .morectl summary { cursor: pointer; color: var(--sub); }
-    .morectl[open] summary { margin-bottom: 4px; }
+    .morepanel { border-top: 1px solid var(--line); padding-top: 8px; margin: 4px 0 8px; }
     .src { color: var(--sub); font-size: 12px; flex: none; white-space: nowrap; }
     .srcnote { color: var(--sub); font-size: 12px; flex: none; }
     .ititle.top { align-items: flex-start; }
@@ -190,10 +189,10 @@
       <div class="control-row">
         <button class="btn-secondary" id="loopBtn">🔁 循環播放 (Off)</button>
         <button class="btn-secondary" id="fsBtn">⛶ 全螢幕</button>
+        <button class="btn-secondary" id="moreCtlBtn" title="更多控制：鏡像、速度、跳轉、A-B" aria-label="更多控制" aria-expanded="false">⚙</button>
       </div>
     </div>
-    <details class="morectl" id="moreCtl">
-      <summary id="moreSum">🎛 更多控制</summary>
+    <div class="morectl" id="moreCtl" hidden>
       <div class="control-row" style="margin-top: 10px;">
         <button class="btn-secondary" id="mirrorBtn">↔ 鏡像翻轉 (Off)</button>
       </div>
@@ -220,7 +219,7 @@
         <button id="abC">清除</button>
         <span class="lbl" id="abInfo"></span>
       </div>
-    </details>
+    </div>
   </div>
 
   <nav class="tabs">
@@ -239,7 +238,7 @@
       <li>全螢幕時，畫面右上角有「✕ 離開全螢幕」與「↔ 鏡像」按鈕。</li>
       <li>鏡像開啟時，影片內建控制列也會一併左右翻轉。</li>
       <li>Instagram 影片僅能用其內建播放鈕，速度、A-B、跳轉、循環不適用。</li>
-      <li>YouTube 在手機鎖定畫面或切到背景時，通常會被 YouTube 暫停，網頁無法改變這點。Chrome 選單勾選「電腦版網站」後可繼續播放；本頁無法替你自動切換，但切換或重新整理後，會自動接續上次的影音與位置（5 分鐘內）。本機檔案與 Podcast 音訊通常可在背景播放。</li>
+      <li>背景播放：本機檔案與 Podcast 音訊通常可直接在背景播放，並可用通知欄／鎖定畫面的控制列暫停、播放、前後 10 秒。YouTube 在手機瀏覽器切到背景或鎖屏時，常被 YouTube 暫停（網頁無法改變這點，也無法替你切換瀏覽器模式）；本頁會自動嘗試恢復播放，且通知欄的 ▶ 可控制 YouTube。若仍被暫停，可試試：Chrome 選單勾選「電腦版網站」→ 播放 → 回到主畫面 → 下拉通知欄按 ▶。切換模式或重新整理後，會自動接續上次的影音與位置（5 分鐘內）。</li>
       <li>清單項目前的灰字是來源；本機檔案在這台裝置的媒體庫才能直接播放，否則會請你選檔一次。</li>
     </ul>
 
@@ -281,6 +280,10 @@
         <li>媒體庫：併入播放清單頁，新增「💾 媒體庫」檢視可看到這台裝置的全部檔案，原設定頁的媒體庫區塊取消；清單項目標題前以灰字標示來源（YT、IG、本機、Podcast、連結），此裝置沒有的本機檔案會註明。</li>
         <li>Podcast：預設不展開單集，點選「我的 Podcast」中的節目才展開（再點一次收合）；單集直接點標題播放，☆／⬇ 移到單集上方，日期與長度改為標題前的灰字；單集資料同時向 iTunes、節目 RSS（多個轉接來源）取得並自動合併去重，最多保留最新 600 集。</li>
         <li>設定頁：取消「網站預設清單」與從網站載入功能；頁面更名為「說明」，並收納使用說明與修改歷程。</li>
+        <li>背景播放：通知欄／鎖定畫面的播放、暫停、前後 10 秒控制，現在也能控制 YouTube；切到背景被系統暫停時，會自動嘗試恢復播放。移除「勾選電腦版網站」的彈出提示，改在說明頁提供操作步驟。</li>
+        <li>版面調整：「更多控制」改為控制列上的 ⚙ 圖示按鈕，不再多占一列；啟用鏡像、變速或 A-B 時圖示會亮起。</li>
+        <li>播放清單：歌曲清單上方只保留「播放全部」「目前播放」，匯入檔案、網址、編輯、匯出／匯入清單與上次匯出時間，併入「更多」展開；備份逾期時「更多」會顯示 ⚠。</li>
+        <li>Podcast：☆／⬇ 移到單集日期與長度的下一列，標題維持正常顯示。</li>
       </ul>
     </div>
     <div class="changelog-item">
@@ -647,8 +650,10 @@ function loadYT(id,start){
         events:{
           onReady:()=>{ytReady=true;ytPlayer.loadVideoById({videoId:ytWant.id,startSeconds:ytWant.start});applyRate();},
           onStateChange:e=>{
-            if(e.data===YT.PlayerState.ENDED)onEnded();
-            if(e.data===YT.PlayerState.PLAYING){errStreak=0;applyRate();}
+            const S=YT.PlayerState;
+            if(e.data===S.ENDED)onEnded();
+            if(e.data===S.PLAYING){errStreak=0;applyRate();wantPlay=true;bgTry=0;setPBState('playing');}
+            if(e.data===S.PAUSED){setPBState('paused');if(document.hidden&&wantPlay)setTimeout(bgResume,300);else wantPlay=false;}
           },
           onError:()=>{toast('此 YouTube 影片無法播放（可能禁止嵌入或已下架）');if(queue)skipNext();}
         }
@@ -674,10 +679,6 @@ function playItem(it,auto,seek){
     const id=ytId(it.url);if(!id){toast('網址格式有誤');return;}
     const sk=pendingSeek;pendingSeek=0;
     showSurface('yt');loadYT(id,sk);
-    if(!quiet&&/Android|iPhone|iPad/i.test(navigator.userAgent)&&!prefs.tipDesktop){
-      prefs.tipDesktop=true;savePrefs();
-      toast('提示：YouTube 在鎖屏或切到背景時會暫停。若想繼續聽，請在 Chrome 選單勾選「電腦版網站」，頁面會自動接續播放。');
-    }
   }else if(it.type==='ig'){
     const g=igParse(it.url);
     if(!g||!g.code){toast('Instagram 網址格式有誤');return;}
@@ -748,7 +749,9 @@ function moreSummary(){
   if(prefs.mirror)parts.push('鏡像 On');
   if(prefs.rate!==1)parts.push(prefs.rate+'x');
   if(abA!=null)parts.push('A-B');
-  const el=$('#moreSum');if(el)el.textContent='🎛 更多控制'+(parts.length?'（'+parts.join('、')+'）':'');
+  const b=$('#moreCtlBtn');if(!b)return;
+  b.classList.toggle('btn-active',parts.length>0);
+  b.title='更多控制：鏡像、速度、跳轉、A-B'+(parts.length?'（目前：'+parts.join('、')+'）':'');
 }
 $('#speedSelect').addEventListener('change',e=>{prefs.rate=parseFloat(e.target.value);savePrefs();applyRate();});
 
@@ -861,17 +864,40 @@ function tryResume(){
   playItem(it,'resume',Number(r.t)||0);
 }
 
-/* 手機鎖定畫面控制 */
+/* 手機鎖定畫面／通知欄控制（YouTube 也能控制），切到背景被暫停時自動嘗試恢復 */
+let wantPlay=false,bgTry=0;
+function setPBState(st){try{if('mediaSession' in navigator)navigator.mediaSession.playbackState=st;}catch(e){}}
+function bgResume(){
+  if(!wantPlay||!document.hidden||!cur||cur.type==='ig')return;
+  let paused;
+  if(isYT()){try{paused=ytPlayer.getPlayerState()!==1;}catch(e){return;}}
+  else paused=video.paused&&!video.ended;
+  if(!paused){bgTry=0;return;}
+  if(bgTry++>=4)return;
+  try{if(isYT())ytPlayer.playVideo();else video.play().catch(()=>{});}catch(e){}
+  setTimeout(bgResume,800);
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){bgTry=0;setTimeout(bgResume,500);setTimeout(bgResume,2000);}
+});
+video.addEventListener('play',()=>{wantPlay=true;bgTry=0;setPBState('playing');});
+video.addEventListener('pause',()=>{
+  setPBState('paused');
+  if(video.ended)return;
+  if(document.hidden&&wantPlay)setTimeout(bgResume,300);else wantPlay=false;
+});
+function mPlay(){wantPlay=true;bgTry=0;if(isYT())ytPlayer.playVideo();else video.play().catch(()=>{});}
+function mPause(){wantPlay=false;if(isYT())ytPlayer.pauseVideo();else video.pause();}
+const mSeek=d=>()=>{if(cur&&cur.type!=='ig')seekTo(Math.max(0,getTime()+d));};
 function updateMeta(){
   document.title=cur&&cur.title?cur.title+' - 影音播放器':'影音播放器';
   if(!('mediaSession' in navigator))return;
-  try{
-    navigator.mediaSession.metadata=new MediaMetadata({title:(cur&&cur.title)||'影音播放器',artwork:(cur&&cur.image)?[{src:cur.image}]:[]});
-    navigator.mediaSession.setActionHandler('play',()=>video.play().catch(()=>{}));
-    navigator.mediaSession.setActionHandler('pause',()=>video.pause());
-    navigator.mediaSession.setActionHandler('previoustrack',queue?prevItem:null);
-    navigator.mediaSession.setActionHandler('nexttrack',queue?()=>nextItem(false):null);
-  }catch(e){}
+  try{navigator.mediaSession.metadata=new MediaMetadata({title:(cur&&cur.title)||'影音播放器',artwork:(cur&&cur.image)?[{src:cur.image}]:[]});}catch(e){}
+  const set=(a,f)=>{try{navigator.mediaSession.setActionHandler(a,f);}catch(e){}};
+  set('play',mPlay);set('pause',mPause);
+  set('seekbackward',mSeek(-10));set('seekforward',mSeek(10));
+  set('previoustrack',queue?prevItem:null);
+  set('nexttrack',queue?()=>nextItem(false):null);
 }
 
 /* 快捷鍵 */
@@ -993,16 +1019,17 @@ function catBlock(label,list,sel,lab,onSelect,ops,extras){
 }
 /* 項目來源（顯示在標題前的灰色小字） */
 const srcLabel=it=>it.src||(it.type==='youtube'?'YT':it.type==='ig'?'IG':it.type==='local'?'本機':'連結');
-function ioBlock(){
-  const stale=!db.lastExport?db.mains.some(m=>m.subs.some(s=>s.items.length)):(Date.now()-db.lastExport>30*864e5);
-  return h('div',{class:'block'},
-    h('div',{class:'bhead'},h('strong',{text:'清單備份'}),
-      h('div',{class:'ops'},
-        h('button',{onclick:exportData,text:'📤 匯出清單'}),
-        h('button',{onclick:()=>$('#importFile').click(),text:'📥 匯入清單'}))),
-    h('div',{class:'hint'+(stale?' warn':''),text:(db.lastExport?'上次匯出：'+new Date(db.lastExport).toLocaleString('zh-TW'):'尚未匯出過備份')+'。匯入到其他裝置時，本機檔案項目會自動略過。'}));
+let plMore=false;
+const backupStale=()=>!db.lastExport?db.mains.some(m=>m.subs.some(s=>s.items.length)):(Date.now()-db.lastExport>30*864e5);
+const editBtn=()=>h('button',{class:plEdit?'on':'',onclick:()=>{plEdit=!plEdit;renderPL();},text:plEdit?'✔ 完成編輯':'✎ 編輯'});
+const moreBtn=()=>h('button',{class:(plMore||plEdit)?'on':'',onclick:()=>{plMore=!plMore;renderPL();},text:'更多 '+(plMore?'▴':'▾')+(backupStale()?' ⚠':'')});
+function morePanel(btns){
+  return h('div',{class:'morepanel'},
+    h('div',{class:'ops'},btns,
+      h('button',{onclick:exportData,text:'📤 匯出清單'}),
+      h('button',{onclick:()=>$('#importFile').click(),text:'📥 匯入清單'})),
+    h('div',{class:'hint'+(backupStale()?' warn':''),text:(db.lastExport?'上次匯出：'+new Date(db.lastExport).toLocaleString('zh-TW'):'尚未匯出過備份')+'。匯入到其他裝置時，本機檔案項目會自動略過。'}));
 }
-const editBtn=()=>h('button',{class:plEdit?'on':'',onclick:()=>{plEdit=!plEdit;renderPL();},text:plEdit?'✔ 完成':'✎ 編輯'});
 function renderPL(){
   const root=$('#plRoot');root.replaceChildren();
   if(!ui.main)ui.main=ALL;
@@ -1016,8 +1043,6 @@ function renderPL(){
     if(ui.sub!==ALL){sub=main.subs.find(s=>s.id===ui.sub)||null;if(!sub)ui.sub=ALL;}
   }
   savePrefs();
-
-  root.append(ioBlock());
 
   root.append(catBlock('主分類',db.mains,main,c=>c.name+' ('+countOf(c)+')',id=>{ui.main=id;ui.sub=ALL;renderPL();},{
     add:async()=>{const r=await ask('新增主分類',[{key:'n',label:'名稱'}]);if(r&&r.n){const m={id:uid(),name:r.n,subs:[{id:uid(),name:'預設清單',items:[]}]};db.mains.push(m);ui.main=m.id;ui.sub=ALL;save();renderPL();}},
@@ -1044,14 +1069,17 @@ function renderPL(){
 
   const entries=entriesOf(ui.main,ui.sub);
   const viewName=ui.main===ALL?'全部':(sub?main.name+' / '+sub.name:main.name+'（全部次分類）');
-  const blk=h('div',{class:'block'},h('div',{class:'bhead'},
-    h('strong',{text:viewName+'（'+entries.length+'）'}),
-    h('div',{class:'ops'},
-      h('button',{class:'primary',onclick:()=>entries.length?playQueue(entries.map(e=>e.it),0):toast('清單是空的'),text:'▶ 播放全部'}),
-      h('button',{onclick:addCurrent,text:'＋ 目前播放'}),
+  const blk=h('div',{class:'block'},
+    h('div',{class:'bhead'},
+      h('strong',{text:viewName+'（'+entries.length+'）'}),
+      h('div',{class:'ops'},
+        h('button',{class:'primary',onclick:()=>entries.length?playQueue(entries.map(e=>e.it),0):toast('清單是空的'),text:'▶ 播放全部'}),
+        h('button',{onclick:addCurrent,text:'＋ 目前播放'}),
+        moreBtn())),
+    plMore&&morePanel([
       h('button',{onclick:()=>$('#plFiles').click(),text:'＋ 匯入檔案'}),
       h('button',{onclick:addManual,text:'＋ 網址'}),
-      editBtn())));
+      editBtn()]));
   if(!entries.length)blk.append(h('div',{class:'hint',text:'這裡還沒有項目。「＋ 匯入檔案」可一次選多個本機影音，會存入媒體庫並加入清單；「＋ 網址」可貼 YouTube、Instagram 或影音連結。'}));
   const playList=entries.map(e=>e.it);
   entries.forEach((e,idx)=>{
@@ -1108,8 +1136,10 @@ function renderLibView(root){
     h('div',{class:'bhead'},h('strong',{text:'媒體庫（這台裝置上的全部檔案）'}),
       h('div',{class:'ops'},
         h('button',{class:'primary',onclick:()=>libItems.length?playQueue(libItems,0):toast('媒體庫是空的'),text:'▶ 播放全部'}),
-        h('button',{onclick:()=>$('#plFiles').click(),text:'＋ 匯入檔案'}),
-        editBtn())),
+        moreBtn())),
+    plMore&&morePanel([
+      h('button',{onclick:()=>$('#plFiles').click(),text:'＋ 匯入檔案'}),
+      editBtn()]),
     info,list));
   libList().then(async recs=>{
     if(ui.main!==LIB)return;
@@ -1379,23 +1409,24 @@ function renderPod(){
       const meta=[fmtDate(ep.date),fmtDur(ep.dur)].filter(Boolean).join('・');
       const play=()=>{queue=null;playItem({id:uid(),type:'url',title:ep.title,url:ep.url,image:ep.image||p.image||'',src:'Podcast'});};
       const fav=favOf(ep.url);
+      const opsRow=h('div',{class:'ops'},
+        ib(fav?'★':'☆',fav?'已收藏（再按一次取消收藏）':'收藏到播放清單',async()=>{
+          if(favOf(ep.url)){
+            if(!await confirmBox('取消收藏「'+ep.title+'」？將從所有播放清單移除這個單集。'))return;
+            unfav(ep.url);save();toast('已取消收藏');renderEps();return;
+          }
+          const sub=await pickSub();if(!sub)return;
+          sub.items.push({id:uid(),type:'url',title:ep.title,url:ep.url,image:ep.image||p.image||'',src:'Podcast'});
+          save();toast('已收藏到「'+sub.name+'」');renderEps();
+        },'star'+(fav?' fav':'')),
+        ib('⬇','下載音訊',async()=>{
+          if(await confirmBox('要下載這個單集的音訊檔嗎？\n「'+ep.title+'」\n檔案可能較大，會使用網路流量。'))downloadEp(ep);
+        }));
       list.append(h('div',{class:'item'+(ep.url===playingKey?' playing':'')},
-        h('div',{class:'ops'},
-          ib(fav?'★':'☆',fav?'已收藏（再按一次取消收藏）':'收藏到播放清單',async()=>{
-            if(favOf(ep.url)){
-              if(!await confirmBox('取消收藏「'+ep.title+'」？將從所有播放清單移除這個單集。'))return;
-              unfav(ep.url);save();toast('已取消收藏');renderEps();return;
-            }
-            const sub=await pickSub();if(!sub)return;
-            sub.items.push({id:uid(),type:'url',title:ep.title,url:ep.url,image:ep.image||p.image||'',src:'Podcast'});
-            save();toast('已收藏到「'+sub.name+'」');renderEps();
-          },'star'+(fav?' fav':'')),
-          ib('⬇','下載音訊',async()=>{
-            if(await confirmBox('要下載這個單集的音訊檔嗎？\n「'+ep.title+'」\n檔案可能較大，會使用網路流量。'))downloadEp(ep);
-          })),
         h('button',{class:'ititle top',onclick:play},
           meta&&h('span',{class:'meta',text:meta}),
-          h('span',{class:'t',text:ep.title}))));
+          h('span',{class:'t',text:ep.title})),
+        opsRow));
     });
   };
   root.append(blk);
@@ -1499,6 +1530,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==='pl')renderPL();
   if(b.dataset.tab==='pod')renderPod();
 });
+$('#moreCtlBtn').onclick=()=>{const b=$('#moreCtl');b.hidden=!b.hidden;$('#moreCtlBtn').setAttribute('aria-expanded',String(!b.hidden));};
 $('#clearUrl').onclick=()=>{const i=$('#ytUrl');i.value='';i.focus();};
 $('#moreBtn').onclick=()=>{
   const box=$('#moreInfo');box.hidden=!box.hidden;
