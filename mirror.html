@@ -62,7 +62,7 @@
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip { border-radius: 999px; padding: 5px 14px; min-height: 36px; font-weight: normal; }
     .item { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding: 8px 2px; }
-    .meta2 { display: flex; justify-content: flex-end; gap: 12px; font-size: 12px; color: var(--sub); }
+    .meta2 { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--sub); }
     .item.ep { flex-direction: row; align-items: flex-start; gap: 8px; }
     .item.ep .epl { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; flex: none; }
     .item.ep .epl .meta { white-space: nowrap; padding: 4px 0 0; }
@@ -162,9 +162,9 @@
     <div class="input-group">
       <label class="small">選擇本機影片或音訊檔 (MP3, M4A 等，可一次選多個)：</label>
       <input type="file" id="localVideo" accept="video/*,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.mp4,.webm,.mkv" multiple>
-      <div class="row" style="gap:2px"><label class="small"><input type="checkbox" id="saveLib" checked> 同時存入「媒體庫」</label><button type="button" class="linkbtn" id="moreBtn">更多 ▾</button></div>
+      <div class="row" style="gap:2px"><label class="small"><input type="checkbox" id="saveLib" checked> 同時存入「<a href="#" id="libLink">媒體庫</a>」</label><button type="button" class="linkbtn" id="moreBtn">更多 ▾</button></div>
       <div class="hint" id="moreInfo" hidden>
-        <div>（記在這台裝置的瀏覽器內，下次不用重新選檔）</div>
+        <div>（記在這台裝置的瀏覽器內，下次不用重新選檔。檔案存在瀏覽器的網站資料裡，不是手機的資料夾，所以在檔案管理員看不到；清除此網站資料就會消失。）</div>
         <div>下載音訊可以讓你聽歌不中斷</div>
         <div>僅 Android 適用</div>
         <div>💡 還沒安裝 YTDLnis 嗎？</div>
@@ -266,7 +266,7 @@
       <li>匯入其他裝置的備份時，本機檔案項目會自動略過；同一台裝置的備份則會完整還原。「合併」時，同名分類中已有的相同影片不會重複匯入。</li>
     </ul>
 
-    <details class="changelog-section" open>
+    <details class="changelog-section">
     <summary class="changelog-title">📜 修改歷程紀錄 (Changelog)（點此展開／收合）</summary>
     <div class="changelog-item">
       <strong>v1.1 (2026-10-24)</strong>
@@ -297,6 +297,8 @@
         <li>播放接續：修正切換電腦版／手機版後歌曲消失的問題（重新載入初期不再把位置覆寫成 0）；接續時間放寬為 30 分鐘，暫停中的影音也會回到原位置；播放 YouTube 時加入無聲保活音訊，讓通知欄的播放鍵在被系統暫停後仍保留（仍取決於手機與瀏覽器，無法保證）。</li>
         <li>背景播放修正：取消 YouTube 無聲保活音訊與自動重播（會讓通知欄按鍵無反應、或把使用者按的暫停又播回去）；YouTube 的通知欄改回由 YouTube 播放器自行控制，本機檔案／Podcast 仍由本頁控制。</li>
         <li>Podcast 來源記憶與快取：節目會記住成功的來源（RSS 優先，其次 iTunes、rss2json）與單集清單，之後點開直接讀快取；「⟳」改為「切換來源／重新整理」，可手動切換 RSS／iTunes 或清除快取重抓。</li>
+        <li>修改歷程預設收合；「同時存入媒體庫」的「媒體庫」可點擊直接開啟媒體庫檢視，並說明媒體庫存放在瀏覽器網站資料內。</li>
+        <li>播放清單：「主分類 / 次分類」靠左、長度靠右；Podcast 來源不再顯示灰色來源字。「▶ 播放全部」按一次後會切換為「▶ 播放單曲」，兩種都是循環播放。</li>
         <li>A-B：「設 A 起點／設 B 終點」改為 A、B 圖示；新增 ✂ 剪輯，將 A-B 區段存成音訊（WAV）放進媒體庫（本機檔案與可讀取的連結適用，YouTube／Instagram 不適用）。</li>
         <li>文字：YTDLnis 提示改為「下載音訊可以讓你聽歌不中斷／僅 Android 適用」，並簡化下載連結文字。</li>
         <li>播放清單：每首歌曲以灰字顯示「主分類 / 次分類」與長度（靠右）；清單標題顯示目前篩選的合計長度（部分長度未知時於後加「+」）。長度在播放過一次後自動記錄，本機檔案會於背景補算。</li>
@@ -723,9 +725,9 @@ function playItem(it,auto,seek){
     showSurface('video');video.src=it.url;tryPlay();
   }
 }
-function playQueue(items,i){
+function playQueue(items,i,loop){
   if(!items.length)return;
-  queue={items:items.slice(),i};errStreak=0;saveQueue();
+  queue={items:items.slice(),i,loop:!!loop};errStreak=0;saveQueue();
   playItem(queue.items[i]);
 }
 function skipNext(){
@@ -736,12 +738,12 @@ function skipNext(){
 function nextItem(auto){
   if(!queue){if(!auto)toast('目前不是從清單播放');return;}
   let n=queue.i+1;
-  if(n>=queue.items.length){if(prefs.loop)n=0;else{if(auto)toast('清單播放完畢');return;}}
+  if(n>=queue.items.length){if(prefs.loop||queue.loop)n=0;else{if(auto)toast('清單播放完畢');return;}}
   queue.i=n;playItem(queue.items[n],auto);
 }
 function prevItem(){
   if(!queue){toast('目前不是從清單播放');return;}
-  let n=queue.i-1;if(n<0)n=prefs.loop?queue.items.length-1:0;
+  let n=queue.i-1;if(n<0)n=(prefs.loop||queue.loop)?queue.items.length-1:0;
   queue.i=n;playItem(queue.items[n]);
 }
 function onEnded(){if(queue)nextItem(true);else if(prefs.loop)replay();}
@@ -1084,6 +1086,18 @@ function morePanel(btns){
       h('button',{onclick:()=>$('#importFile').click(),text:'📥 匯入清單'})),
     h('div',{class:'hint'+(backupStale()?' warn':''),text:(db.lastExport?'上次匯出：'+new Date(db.lastExport).toLocaleString('zh-TW'):'尚未匯出過備份')+'。匯入到其他裝置時，本機檔案項目會自動略過。'}));
 }
+/* 播放全部／播放單曲：按一次以目前方式播放並切換下次的方式；兩種都是循環 */
+function playModeBtn(getItems){
+  const one=prefs.plMode==='one';
+  return h('button',{class:'primary',onclick:()=>{
+    const items=getItems();if(!items.length){toast('清單是空的');return;}
+    if(one){
+      const k=cur&&keyOf(cur);const it=items.find(x=>keyOf(x)===k)||items[0];
+      playQueue([it],0,true);toast('單曲循環播放');
+    }else{playQueue(items,0,true);toast('清單循環播放');}
+    prefs.plMode=one?'all':'one';savePrefs();renderPL();
+  },text:one?'▶ 播放單曲':'▶ 播放全部'});
+}
 function renderPL(){
   const root=$('#plRoot');root.replaceChildren();
   if(!ui.main)ui.main=ALL;
@@ -1129,7 +1143,7 @@ function renderPL(){
     h('div',{class:'bhead'},
       h('strong',{text:viewName+'（'+entries.length+(totLen?'・'+totLen:'')+'）'}),
       h('div',{class:'ops'},
-        h('button',{class:'primary',onclick:()=>entries.length?playQueue(entries.map(e=>e.it),0):toast('清單是空的'),text:'▶ 播放全部'}),
+        playModeBtn(()=>entries.map(e=>e.it)),
         h('button',{onclick:addCurrent,text:'＋ 目前播放'}),
         moreBtn())),
     plMore&&morePanel([
@@ -1142,7 +1156,7 @@ function renderPL(){
     const it=e.it,owner=e.sub;
     const row=h('div',{class:'item'+(keyOf(it)===playingKey?' playing':'')},
       h('button',{class:'ititle',onclick:()=>playQueue(playList,idx)},
-        h('span',{class:'src',text:srcLabel(it)}),
+        it.src!=='Podcast'&&h('span',{class:'src',text:srcLabel(it)}),
         h('span',{class:'t',text:it.title}),
         (it.type==='local'&&!localAvail(it))&&h('span',{class:'srcnote',text:'（此裝置無檔案）'})),
       h('div',{class:'meta2'},h('span',{text:e.main.name+' / '+e.sub.name}),it.dur?h('span',{text:fmtT(it.dur)}):null));
@@ -1208,7 +1222,7 @@ function renderLibView(root){
   root.append(h('div',{class:'block'},
     h('div',{class:'bhead'},h('strong',{text:'媒體庫（這台裝置上的全部檔案）'}),
       h('div',{class:'ops'},
-        h('button',{class:'primary',onclick:()=>libItems.length?playQueue(libItems,0):toast('媒體庫是空的'),text:'▶ 播放全部'}),
+        playModeBtn(()=>libItems),
         moreBtn())),
     plMore&&morePanel([
       h('button',{onclick:()=>$('#plFiles').click(),text:'＋ 匯入檔案'}),
@@ -1670,6 +1684,7 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==='pod')renderPod();
 });
 $('#moreCtlBtn').onclick=()=>{const b=$('#moreCtl');b.hidden=!b.hidden;$('#moreCtlBtn').setAttribute('aria-expanded',String(!b.hidden));};
+$('#libLink').onclick=e=>{e.preventDefault();e.stopPropagation();ui.main=LIB;ui.sub=ALL;savePrefs();document.querySelector('.tabs button[data-tab=pl]').click();window.scrollTo({top:document.body.scrollHeight*0,behavior:'smooth'});};
 $('#clearUrl').onclick=()=>{const i=$('#ytUrl');i.value='';i.focus();};
 $('#moreBtn').onclick=()=>{
   const box=$('#moreInfo');box.hidden=!box.hidden;
