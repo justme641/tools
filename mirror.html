@@ -62,6 +62,11 @@
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip { border-radius: 999px; padding: 5px 14px; min-height: 36px; font-weight: normal; }
     .item { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding: 8px 2px; }
+    .item.ep { flex-direction: row; align-items: flex-start; gap: 8px; }
+    .item.ep .epl { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; flex: none; }
+    .item.ep .epl .meta { white-space: nowrap; padding: 4px 0 0; }
+    .item.ep .ops { flex-wrap: nowrap; align-items: flex-start; }
+    .item.ep .ititle { flex: 1; width: auto; align-items: flex-start; }
     .item.playing { background: var(--hl); border-radius: 8px; padding-left: 8px; }
     .ititle { background: none !important; border: 0; text-align: left; padding: 2px 0; min-height: 32px; width: 100%; font-weight: normal; display: flex; gap: 6px; align-items: center; }
     .ititle span.t { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -210,13 +215,13 @@
       <div class="control-row" style="margin-top: 10px;">
         <span class="lbl">跳到指定時間：</span>
         <input type="text" id="seekIn" placeholder="例如 1:23 或 83" autocomplete="off" style="width:140px">
-        <button id="seekGo">▶ 跳轉播放</button>
+        <button id="seekGo" title="跳轉播放" aria-label="跳轉播放">▶</button>
       </div>
       <div class="control-row" style="margin-top: 10px;">
         <span class="lbl">A-B 重複：</span>
         <button id="abA">設 A 起點</button>
         <button id="abB">設 B 終點</button>
-        <button id="abC">清除</button>
+        <button id="abC" title="清除 A-B" aria-label="清除 A-B">✕</button>
         <span class="lbl" id="abInfo"></span>
       </div>
     </div>
@@ -288,6 +293,8 @@
         <li>播放接續：修正切換電腦版／手機版後歌曲消失的問題（重新載入初期不再把位置覆寫成 0）；接續時間放寬為 30 分鐘，暫停中的影音也會回到原位置；播放 YouTube 時加入無聲保活音訊，讓通知欄的播放鍵在被系統暫停後仍保留（仍取決於手機與瀏覽器，無法保證）。</li>
         <li>背景播放修正：取消 YouTube 無聲保活音訊與自動重播（會讓通知欄按鍵無反應、或把使用者按的暫停又播回去）；YouTube 的通知欄改回由 YouTube 播放器自行控制，本機檔案／Podcast 仍由本頁控制。</li>
         <li>Podcast 來源記憶與快取：節目會記住成功的來源（RSS 優先，其次 iTunes、rss2json）與單集清單，之後點開直接讀快取；「⟳」改為「切換來源／重新整理」，可手動切換 RSS／iTunes 或清除快取重抓。</li>
+        <li>Podcast 單集搜尋：輸入關鍵字時，除了篩選快取，也會同步向 iTunes 搜尋該節目更早的單集（快取以外），結果顯示在下方，可直接播放、收藏、下載。</li>
+        <li>Podcast 版面：單集左側為日期長度與 ☆／⬇（靠上對齊），右側為標題，☆／⬇ 與標題第二行對齊；「跳轉播放」與 A-B「清除」改為只顯示圖示。</li>
       </ul>
     </div>
     <div class="changelog-item">
@@ -1402,15 +1409,56 @@ function renderPod(){
 
   const qEp=h('input',{type:'search',placeholder:'在此節目中搜尋單集關鍵字',value:podQ});
   const favCb=h('input',{type:'checkbox'});favCb.checked=podFav;
-  const list=h('div'),pagerTop=h('div',{class:'pager'}),pagerBot=h('div',{class:'pager'});
+  const list=h('div'),pagerTop=h('div',{class:'pager'}),pagerBot=h('div',{class:'pager'}),onl=h('div');
+  let onlineList=[],onlineKw='',onlineBusy=false,onlineTimer=0,rowFn=null;
+  const norm=u=>String(u||'').replace(/^https?:\/\//i,'').split('?')[0];
+  function renderOnline(){
+    onl.replaceChildren();
+    const kw=podQ.trim();
+    if(kw.length<2)return;
+    const have=new Set(p.eps.map(e=>norm(e.url)));
+    const more=onlineKw===kw.toLowerCase()?onlineList.filter(e=>!have.has(norm(e.url))):[];
+    if(onlineBusy&&onlineKw!==kw.toLowerCase()){onl.append(h('div',{class:'hint',text:'正在向 iTunes 搜尋更早的單集…'}));return;}
+    if(onlineKw!==kw.toLowerCase())return;
+    onl.append(h('div',{class:'bhead'},h('strong',{text:'🔍 iTunes 線上搜尋（快取以外的單集）'}),h('span',{class:'meta',text:more.length+' 集'})));
+    if(!more.length)onl.append(h('div',{class:'hint',text:'線上沒有找到快取以外的符合單集。'}));
+    more.slice(0,100).forEach(ep=>onl.append(rowFn(ep)));
+    if(more.length>100)onl.append(h('div',{class:'hint',text:'僅顯示前 100 集，請輸入更精確的關鍵字。'}));
+  }
+  function onlineSoon(){
+    clearTimeout(onlineTimer);
+    const kw=podQ.trim();
+    if(kw.length<2){renderOnline();return;}
+    onlineTimer=setTimeout(()=>onlineSearch(kw),700);
+  }
+  async function onlineSearch(kw){
+    const key=kw.toLowerCase();
+    if(onlineKw===key)return;
+    onlineBusy=true;renderOnline();
+    try{
+      const cid=await resolveCid(p);
+      if(!cid)throw new Error('no cid');
+      const q=t=>fetchTO('https://itunes.apple.com/search?media=podcast&entity=podcastEpisode&limit=200&country=TW&term='+encodeURIComponent(t)).then(r=>r.json()).catch(()=>({results:[]}));
+      const [a,b]=await Promise.all([q(kw+' '+p.name),q(kw)]);
+      const map=new Map();
+      [...(a.results||[]),...(b.results||[])].forEach(x=>{
+        if(String(x.collectionId)!==String(cid)||!x.episodeUrl)return;
+        const u=httpsUp(x.episodeUrl);if(map.has(norm(u)))return;
+        map.set(norm(u),{title:x.trackName||'未命名單集',url:u,date:x.releaseDate||'',dur:x.trackTimeMillis?String(Math.round(x.trackTimeMillis/1000)):'',image:''});
+      });
+      if(podQ.trim().toLowerCase()!==key){onlineBusy=false;return;}
+      onlineList=[...map.values()].sort((x,y)=>(new Date(y.date)||0)-(new Date(x.date)||0));onlineKw=key;
+    }catch(e){onlineList=[];onlineKw=key;toast('線上搜尋失敗，只顯示快取內的單集');}
+    onlineBusy=false;renderOnline();
+  }
   const blk=h('div',{class:'block'},
     h('div',{class:'bhead'},
       h('div',{class:'row'},p.image&&h('img',{class:'cover',src:p.image,alt:''}),h('strong',{text:p.name})),
       h('span',{class:'meta',text:(podSrcLabel(p)?'來源：'+podSrcLabel(p)+'・':'')+(p.at?'更新於 '+new Date(p.at).toLocaleString('zh-TW'):'')})),
     h('div',{class:'row'},h('div',{class:'grow'},qEp),
       h('label',{class:'small',style:'display:flex;gap:4px;align-items:center;white-space:nowrap'},favCb,'只看收藏 ★')),
-    pagerTop,list,pagerBot);
-  qEp.addEventListener('input',()=>{podQ=qEp.value;podPage=1;renderEps();});
+    pagerTop,list,pagerBot,onl);
+  qEp.addEventListener('input',()=>{podQ=qEp.value;podPage=1;renderEps();onlineSoon();});
   favCb.addEventListener('change',()=>{podFav=favCb.checked;podPage=1;renderEps();});
   const go=n=>{podPage=n;renderEps();blk.scrollIntoView({behavior:'smooth',block:'start'});};
 
@@ -1430,7 +1478,7 @@ function renderPod(){
     list.replaceChildren();
     if(!p.eps.length)list.append(h('div',{class:'hint',text:'尚無單集資料，請稍候，或按上方 ⟳ 切換來源／重新整理。'}));
     else if(!eps.length)list.append(h('div',{class:'hint',text:'沒有符合條件的單集。'}));
-    slice.forEach(ep=>{
+    rowFn=ep=>{
       const meta=[fmtDate(ep.date),fmtDur(ep.dur)].filter(Boolean).join('・');
       const play=()=>{queue=null;playItem({id:uid(),type:'url',title:ep.title,url:ep.url,image:ep.image||p.image||'',src:'Podcast'});};
       const fav=favOf(ep.url);
@@ -1447,12 +1495,12 @@ function renderPod(){
         ib('⬇','下載音訊',async()=>{
           if(await confirmBox('要下載這個單集的音訊檔嗎？\n「'+ep.title+'」\n檔案可能較大，會使用網路流量。'))downloadEp(ep);
         }));
-      list.append(h('div',{class:'item'+(ep.url===playingKey?' playing':'')},
-        h('button',{class:'ititle top',onclick:play},
-          meta&&h('span',{class:'meta',text:meta}),
-          h('span',{class:'t',text:ep.title})),
-        opsRow));
-    });
+      return h('div',{class:'item ep'+(ep.url===playingKey?' playing':'')},
+        h('div',{class:'epl'},meta&&h('span',{class:'meta',text:meta}),opsRow),
+        h('button',{class:'ititle top',onclick:play},h('span',{class:'t',text:ep.title})));
+    };
+    slice.forEach(ep=>list.append(rowFn(ep)));
+    renderOnline();
   };
   root.append(blk);
   renderEps();
