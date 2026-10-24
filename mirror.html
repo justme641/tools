@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>影音播放器</title>
+  <meta name="description" content="影音播放器：本機影音、YouTube、Instagram、Podcast，支援播放清單、A-B 重複與變速。">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="影音播放器">
+  <meta property="og:description" content="本機影音、YouTube、Instagram、Podcast 播放，支援播放清單、A-B 重複與變速。">
+  <meta name="twitter:card" content="summary">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#121212">
   <link rel="icon" href="icon-192.png">
@@ -63,7 +68,10 @@
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip { border-radius: 999px; padding: 5px 14px; min-height: 36px; font-weight: normal; }
     .item { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding: 8px 2px; }
-    .meta2 { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--sub); }
+    .meta2 .cat { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+    .meta2 .cnt { flex: none; width: 9em; text-align: left; white-space: nowrap; }
+    .meta2 .len { flex: none; width: 4.2em; text-align: right; white-space: nowrap; }
+    .meta2 { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; color: var(--sub); }
     .item.ep { flex-direction: row; align-items: flex-start; gap: 8px; }
     .item.ep .epl { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; flex: none; }
     .item.ep .epl .meta { white-space: nowrap; padding: 4px 0 0; }
@@ -211,9 +219,9 @@
           <option value="0.5">0.5x (慢速)</option>
           <option value="0.75">0.75x (稍慢)</option>
           <option value="1" selected>1.0x (原速)</option>
-          <option value="1.25">1.25x (快速)</option>
-          <option value="1.5">1.5x</option>
-          <option value="2">2.0x</option>
+          <option value="1.25">1.25x (稍速)</option>
+          <option value="1.5">1.5x (快速)</option>
+          <option value="2">2.0x (超快速)</option>
         </select>
       </div>
       <div class="control-row" style="margin-top: 10px;">
@@ -299,6 +307,8 @@
         <li>背景播放修正：取消 YouTube 無聲保活音訊與自動重播（會讓通知欄按鍵無反應、或把使用者按的暫停又播回去）；YouTube 的通知欄改回由 YouTube 播放器自行控制，本機檔案／Podcast 仍由本頁控制。</li>
         <li>Podcast 來源記憶與快取：節目會記住成功的來源（RSS 優先，其次 iTunes、rss2json）與單集清單，之後點開直接讀快取；「⟳」改為「切換來源／重新整理」，可手動切換 RSS／iTunes 或清除快取重抓。</li>
         <li>YouTube 錯誤 153：加入來源網址（referrer／origin）設定，並在發生 153 時提示請由正式網址開啟。</li>
+        <li>播放速度選項文字：1.25x 稍速、1.5x 快速、2.0x 超快速。</li>
+        <li>播放次數：播放清單每首歌新增「觀看次數／聆聽次數」（影片顯示觀看、音訊顯示聆聽），完整播放完畢才會加 1；位置在長度左側並直線對齊。分享連結預覽文字改為「影音播放器」（若仍顯示舊文字，是 GitHub 上的舊檔或通訊軟體的預覽快取）。</li>
         <li>修改歷程預設收合；更多裡補充說明媒體庫存放在瀏覽器網站資料內（檔案管理員看不到），已取消「媒體庫」連結。</li>
         <li>播放清單：「主分類 / 次分類」靠左、長度靠右；Podcast 來源不再顯示灰色來源字。「▶ 播放全部」短按播放，長按切換為「▶ 播放單曲」（再長按切回），兩種都是循環播放。</li>
         <li>A-B：「設 A 起點／設 B 終點」改為 A、B 圖示；新增 ✂ 剪輯，將 A-B 區段存成音訊（WAV）放進媒體庫（本機檔案與可讀取的連結適用，YouTube／Instagram 不適用）。</li>
@@ -646,7 +656,8 @@ function detect(v){
 function recordDur(d){
   d=Math.round(d);if(!cur||!isFinite(d)||d<=0)return;
   curDur=d;let ch=false;const k=keyOf(cur);
-  db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(it=>{if(keyOf(it)===k&&it.dur!==d){it.dur=d;ch=true;}})));
+  const kind=(cur.type==='youtube'||cur.type==='ig')?'v':((cur.src==='Podcast'||video.videoWidth===0)?'a':'v');
+  db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(it=>{if(keyOf(it)===k&&(it.dur!==d||it.kind!==kind)){it.dur=d;it.kind=kind;ch=true;}})));
   if(ch){save();if(!$('#tab-pl').hidden)renderPL();}
 }
 function stopAll(){
@@ -748,7 +759,19 @@ function prevItem(){
   let n=queue.i-1;if(n<0)n=(prefs.loop||queue.loop)?queue.items.length-1:0;
   queue.i=n;playItem(queue.items[n]);
 }
-function onEnded(){if(queue)nextItem(true);else if(prefs.loop)replay();}
+function countPlay(){
+  if(!cur)return;const k=keyOf(cur);let ch=false;
+  db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(it=>{if(keyOf(it)===k){it.plays=(it.plays||0)+1;ch=true;}})));
+  if(ch){save();if(!$('#tab-pl').hidden)renderPL();}
+}
+/* 單曲循環（video.loop）時不會觸發 ended，改用時間回跳判斷是否完整播完 */
+let lastT=0;
+video.addEventListener('timeupdate',()=>{
+  const t=video.currentTime,d=video.duration;
+  if(video.loop&&isFinite(d)&&d>2&&lastT>d-1.5&&t<1.5)countPlay();
+  lastT=t;
+});
+function onEnded(){countPlay();if(queue)nextItem(true);else if(prefs.loop)replay();}
 function replay(){
   if(cur&&cur.type==='youtube'&&ytReady){ytPlayer.seekTo(0,true);ytPlayer.playVideo();}
   else{video.currentTime=0;video.play().catch(()=>{});}
@@ -1171,7 +1194,9 @@ function renderPL(){
         it.src!=='Podcast'&&h('span',{class:'src',text:srcLabel(it)}),
         h('span',{class:'t',text:it.title}),
         (it.type==='local'&&!localAvail(it))&&h('span',{class:'srcnote',text:'（此裝置無檔案）'})),
-      h('div',{class:'meta2'},h('span',{text:e.main.name+' / '+e.sub.name}),it.dur?h('span',{text:fmtT(it.dur)}):null));
+      h('div',{class:'meta2'},h('span',{class:'cat',text:e.main.name+' / '+e.sub.name}),
+        h('span',{class:'cnt',text:((it.kind||((it.type==='youtube'||it.type==='ig')?'v':'a'))==='v'?'觀看次數：':'聆聽次數：')+(it.plays||0)}),
+        h('span',{class:'len',text:it.dur?fmtT(it.dur):''})));
     if(plEdit){
       const sel=h('select',{style:'max-width:150px;padding:5px',onchange:ev=>{
         const v=ev.target.value;if(!v)return;const [mi,si]=v.split('|').map(Number);
@@ -1633,7 +1658,7 @@ function cleanData(d){
     subs:(Array.isArray(m&&m.subs)?m.subs:[]).map(s=>({id:uid(),name:str(s&&s.name)||'未命名',
       items:(Array.isArray(s&&s.items)?s.items:[]).map(it=>{
         const type=['youtube','url','local','ig'].includes(it&&it.type)?it.type:'url';
-        return {id:uid(),type,title:str(it&&it.title)||'未命名',url:str(it&&it.url,2000),name:str(it&&it.name),size:Number(it&&it.size)||0,image:safeUrl(str(it&&it.image,2000)),src:str(it&&it.src,20),dur:Math.max(0,Math.round(Number(it&&it.dur)||0))};
+        return {id:uid(),type,title:str(it&&it.title)||'未命名',url:str(it&&it.url,2000),name:str(it&&it.name),size:Number(it&&it.size)||0,image:safeUrl(str(it&&it.image,2000)),src:str(it&&it.src,20),dur:Math.max(0,Math.round(Number(it&&it.dur)||0)),plays:Math.max(0,Math.round(Number(it&&it.plays)||0)),kind:(it&&it.kind==='v')?'v':(it&&it.kind==='a'?'a':undefined)};
       }).filter(it=>it.type==='local'?it.name:(it.type==='youtube'?!!ytId(it.url):(it.type==='ig'?igOk(it.url):safeMedia(it.url))))
     }))}));
   const podcasts=(Array.isArray(d.podcasts)?d.podcasts:[]).map(p=>({id:uid(),name:str(p&&p.name)||'Podcast',feed:str(p&&p.feed,2000),image:safeUrl(str(p&&p.image,2000)),cid:String((p&&p.cid)||'').replace(/\D/g,''),eps:[],at:0}))
