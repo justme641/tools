@@ -244,12 +244,14 @@
   <nav class="tabs">
     <button data-tab="pl" class="on">🎵 播放清單</button>
     <button data-tab="pod">🎙 Podcast</button>
+    <button data-tab="yt">▶ YouTube</button>
     <button data-tab="bk">ℹ 說明</button>
   </nav>
 
   <section id="tab-pl" class="container"><div id="plRoot"></div></section>
   <section id="tab-pod" class="container" hidden><div id="podRoot"></div></section>
 
+  <section id="tab-yt" class="container" hidden><div id="ytRoot"></div></section>
   <section id="tab-bk" class="container" hidden>
     <h3 style="margin-top:0">使用說明</h3>
     <ul class="hint">
@@ -281,6 +283,7 @@
     <div class="changelog-item">
       <strong>v1.2 (2026-10-25)</strong>
       <ul>
+        <li>新增「▶ YouTube」分頁（Podcast 與說明之間）：可搜尋 YouTube 頻道（或貼頻道網址／@名稱）並收藏，點頻道看最新影片（約 15 部）、點標題播放、☆ 收藏到播放清單；頻道清單可改名、排序、刪除，並包含在匯出／匯入備份中。搜尋靠公開服務與轉接，可能偶爾失敗。</li>
         <li>主分類列移除「💾 媒體庫」；媒體庫檢視改由「來源」列的「媒體庫」進入（在 ALL 下）。</li>
         <li>匯出備份：Podcast 單集每次完整聽完，會記錄開始與結束日期時間（僅寫入匯出檔，網頁上不顯示）。</li>
         <li>播放視窗：單曲標題下方新增灰字「已播放／總長度・剩餘」。</li>
@@ -433,6 +436,7 @@ function loadDB(){
   return defaults();
 }
 let db=loadDB();
+db.channels=Array.isArray(db.channels)?db.channels:[];
 db.libmeta=db.libmeta&&typeof db.libmeta==='object'?db.libmeta:{};
 let prefs=Object.assign({mirror:false,loop:false,rate:1,ui:{}},(()=>{try{return JSON.parse(localStorage.getItem(PKEY))||{};}catch(e){return {};}})());
 prefs.ui=prefs.ui||{};
@@ -1753,7 +1757,8 @@ if(!deviceId){deviceId=uid()+uid();try{localStorage.setItem('mirror.device',devi
 
 function exportData(){
   const data={app:'mirror-player',schema:2,deviceId,exportedAt:new Date().toISOString(),mains:db.mains,
-    podcasts:db.podcasts.map(p=>({name:p.name,feed:p.feed,image:p.image,cid:p.cid||''}))};
+    podcasts:db.podcasts.map(p=>({name:p.name,feed:p.feed,image:p.image,cid:p.cid||''})),
+    channels:db.channels.map(c=>({name:c.name,cid:c.cid,image:c.image||''}))};
   saveBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'mirror-backup-'+ymd()+'.json');
   db.lastExport=Date.now();save();renderPL();toast('已匯出備份檔');
 }
@@ -1769,7 +1774,8 @@ function cleanData(d){
     }))}));
   const podcasts=(Array.isArray(d.podcasts)?d.podcasts:[]).map(p=>({id:uid(),name:str(p&&p.name)||'Podcast',feed:str(p&&p.feed,2000),image:safeUrl(str(p&&p.image,2000)),cid:String((p&&p.cid)||'').replace(/\D/g,''),eps:[],at:0}))
     .filter(p=>safeUrl(p.feed));
-  return {mains,podcasts};
+  const channels=(Array.isArray(d.channels)?d.channels:[]).map(c=>({id:uid(),name:str(c&&c.name)||'YouTube 頻道',cid:str(c&&c.cid,40),image:safeUrl(str(c&&c.image,2000)),vids:[],at:0})).filter(c=>/^UC[\w-]{22}$/.test(c.cid));
+  return {mains,podcasts,channels};
 }
 /* 不是同一台裝置匯出的檔案：媒體庫（本機檔案）項目不適用，直接略過 */
 function prepImport(raw){
@@ -1798,6 +1804,7 @@ function mergeImport(imp){
     const ex=db.podcasts.find(x=>x.feed===p.feed);
     if(!ex)db.podcasts.push(p);else if(p.cid&&!ex.cid)ex.cid=p.cid;
   });
+  (imp.channels||[]).forEach(c=>{if(!db.channels.some(x=>x.cid===c.cid))db.channels.push(c);});
   return {added,dup};
 }
 const countItems=imp=>imp.mains.reduce((a,m)=>a+m.subs.reduce((b,s)=>b+s.items.length,0),0);
@@ -1811,20 +1818,166 @@ async function importFromFile(f){
   const choice=await choiceBox(msg,[{label:'取代',value:'replace'},{label:'合併（建議）',value:'merge',primary:true}]);
   if(!choice)return;
   let stat;
-  if(choice==='replace'){db.mains=imp.mains.length?imp.mains:defaults().mains;db.podcasts=imp.podcasts;stat={added:countItems(imp),dup:0};}
+  if(choice==='replace'){db.mains=imp.mains.length?imp.mains:defaults().mains;db.podcasts=imp.podcasts;db.channels=imp.channels||[];stat={added:countItems(imp),dup:0};}
   else stat=mergeImport(imp);
-  ui.main=ui.sub=ALL;ui.pod=null;save();renderPL();renderPod();
+  ui.main=ui.sub=ALL;ui.pod=null;ui.ch=null;save();renderPL();renderPod();renderYt();
   toast('匯入完成：新增 '+stat.added+' 個項目'+(stat.dup?'，略過重複 '+stat.dup+' 個':'')+(skipped?'，略過本機檔案 '+skipped+' 個':''));
 }
 $('#importFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importFromFile(f);});
 
+/* ---------- YouTube 頻道：搜尋、收藏、看最新影片 ---------- */
+const YT_PROXY=u=>{const e=encodeURIComponent(u);return ['https://api.allorigins.win/raw?url='+e,'https://corsproxy.io/?'+e,'https://api.codetabs.com/v1/proxy?quest='+e,'https://thingproxy.freeboard.io/fetch/'+u];};
+const chImg=u=>{u=String(u||'');if(u.startsWith('//'))u='https:'+u;return safeUrl(u);};
+function proxyText(url,test){
+  return anyOf(YT_PROXY(url).map(async x=>{
+    const r=await fetchTO(x,15000);if(!r.ok)throw new Error('http');
+    const t=await r.text();if(test&&!test.test(t))throw new Error('bad');return t;
+  }));
+}
+/* 搜尋頻道：同時向 YouTube 搜尋頁（經轉接）、Piped、Invidious 查詢，取最先成功者 */
+async function searchChannels(q){
+  const e=encodeURIComponent(q);
+  const fromPage=async()=>{
+    const t=await proxyText('https://www.youtube.com/results?search_query='+e+'&sp=EgIQAg%253D%253D',/ytInitialData/);
+    const m=t.match(/ytInitialData\s*=\s*(\{[\s\S]*?\});\s*<\/script>/);if(!m)throw new Error('parse');
+    const data=JSON.parse(m[1]);const out=[];
+    (function walk(o){
+      if(!o||typeof o!=='object')return;
+      if(o.channelRenderer){const c=o.channelRenderer;
+        const th=(c.thumbnail&&c.thumbnail.thumbnails||[]).slice(-1)[0];
+        out.push({cid:c.channelId,name:(c.title&&(c.title.simpleText||(c.title.runs||[]).map(r=>r.text).join('')))||'',
+          image:th?chImg(th.url):'',note:(c.subscriberCountText&&c.subscriberCountText.simpleText)||''});
+        return;}
+      for(const k in o)walk(o[k]);
+    })(data);
+    if(!out.length)throw new Error('empty');return out;
+  };
+  const piped=host=>async()=>{
+    const r=await fetchTO('https://'+host+'/search?q='+e+'&filter=channels',12000);if(!r.ok)throw new Error('http');
+    const j=await r.json();
+    const out=(j.items||[]).filter(x=>x.url&&/\/channel\/(UC[\w-]{22})/.test(x.url)).map(x=>({cid:x.url.match(/(UC[\w-]{22})/)[1],name:x.name||'',image:chImg(x.thumbnail),note:x.subscribers>0?x.subscribers+' 位訂閱者':''}));
+    if(!out.length)throw new Error('empty');return out;
+  };
+  const invid=host=>async()=>{
+    const r=await fetchTO('https://'+host+'/api/v1/search?type=channel&q='+e,12000);if(!r.ok)throw new Error('http');
+    const j=await r.json();
+    const out=(Array.isArray(j)?j:[]).filter(x=>/^UC[\w-]{22}$/.test(x.authorId||'')).map(x=>({cid:x.authorId,name:x.author||'',image:chImg(((x.authorThumbnails||[]).slice(-1)[0]||{}).url),note:x.subCount?x.subCount+' 位訂閱者':''}));
+    if(!out.length)throw new Error('empty');return out;
+  };
+  return anyOf([fromPage(),piped('pipedapi.kavin.rocks')(),piped('api.piped.private.coffee')(),invid('yewtu.be')(),invid('inv.nadeko.net')()]);
+}
+/* 貼上頻道網址或 @名稱：解析出頻道代碼 */
+async function resolveChannel(input){
+  input=String(input||'').trim();
+  let m=input.match(/(UC[\w-]{22})/);
+  let url=null;
+  if(/^@[\w.\-]+$/.test(input))url='https://www.youtube.com/'+input;
+  else if(/^https?:\/\//i.test(input)){try{const x=new URL(input);if(/(^|\.)youtube\.com$/.test(x.hostname))url=x.origin+x.pathname;}catch(e){}}
+  if(!url&&!m)return null;
+  let name='',image='';
+  if(url){
+    try{
+      const t=await proxyText(url,/channelId|channel_id|canonical/);
+      if(!m){const c=t.match(/"(?:channelId|externalId)"\s*:\s*"(UC[\w-]{22})"/)||t.match(/channel\/(UC[\w-]{22})/)||t.match(/channel_id=(UC[\w-]{22})/);if(c)m=[0,c[1]];}
+      const n=t.match(/<meta property="og:title" content="([^"]+)"/);if(n)name=n[1].replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&quot;/g,'"');
+      const im=t.match(/<meta property="og:image" content="([^"]+)"/);if(im)image=chImg(im[1]);
+    }catch(e){}
+  }
+  return m?{cid:m[1],name,image}:null;
+}
+/* 頻道最新影片：YouTube 官方 RSS（約 15 部），經轉接服務讀取 */
+async function channelVideos(cid){
+  const t=await fetchFeedText('https://www.youtube.com/feeds/videos.xml?channel_id='+cid);
+  const doc=new DOMParser().parseFromString(t,'text/xml');
+  if(doc.querySelector('parsererror'))throw new Error('parse');
+  const vids=[...doc.getElementsByTagName('entry')].map(en=>{
+    const g=n=>{const x=en.getElementsByTagName(n)[0];return x?x.textContent.trim():'';};
+    const th=en.getElementsByTagName('media:thumbnail')[0];
+    return {id:g('yt:videoId'),title:g('title')||'未命名影片',date:g('published'),image:th?safeUrl(th.getAttribute('url')):''};
+  }).filter(v=>/^[\w-]{11}$/.test(v.id));
+  if(!vids.length)throw new Error('empty');
+  const ft=doc.getElementsByTagName('title')[0];
+  return {name:ft?ft.textContent.trim():'',vids};
+}
+async function refreshCh(c,quiet){
+  if(!quiet)toast('讀取頻道影片中…');
+  try{
+    const r=await channelVideos(c.cid);
+    c.vids=r.vids;c.at=Date.now();if((!c.name||c.name==='YouTube 頻道')&&r.name)c.name=r.name;
+    save();if(!$('#tab-yt').hidden)renderYt();
+    if(!quiet)toast('已更新，共 '+c.vids.length+' 部');else $('#toast').style.display='none';
+  }catch(e){toast('讀取頻道影片失敗，請稍後按 ⟳ 重試。');}
+}
+function addChannel(x){
+  const ex=db.channels.find(c=>c.cid===x.cid);
+  if(ex){ui.ch=ex.id;renderYt();toast('已收藏過這個頻道');if(!ex.vids.length)refreshCh(ex,true);return;}
+  const c={id:uid(),name:x.name||'YouTube 頻道',cid:x.cid,image:x.image||'',vids:[],at:0};
+  db.channels.push(c);ui.ch=c.id;save();renderYt();refreshCh(c,true);toast('已收藏頻道「'+c.name+'」');
+}
+function renderYt(){
+  const root=$('#ytRoot');root.replaceChildren();
+  const q=h('input',{type:'search',placeholder:'搜尋 YouTube 頻道名稱，或貼上頻道網址／@名稱'});
+  const res=h('div');
+  const doSearch=async()=>{
+    const term=q.value.trim();if(!term)return;
+    res.replaceChildren(h('div',{class:'hint',text:'搜尋中…'}));
+    try{
+      const direct=await resolveChannel(term);
+      let list;
+      if(direct){list=[{cid:direct.cid,name:direct.name||'YouTube 頻道',image:direct.image,note:''}];}
+      else list=await searchChannels(term);
+      res.replaceChildren();
+      list.slice(0,15).forEach(x=>res.append(h('div',{class:'sr'},
+        x.image&&h('img',{src:x.image,alt:'',loading:'lazy'}),
+        h('div',{class:'grow'},h('div',{text:x.name}),h('div',{class:'meta',text:x.note||x.cid})),
+        h('button',{onclick:()=>addChannel(x),text:db.channels.some(c=>c.cid===x.cid)?'已收藏':'＋ 收藏'}))));
+    }catch(e){res.replaceChildren(h('div',{class:'hint warn',text:'搜尋失敗：公開搜尋服務目前連不上。可改貼頻道網址（例如 https://www.youtube.com/@名稱）或 @名稱 後再按搜尋。'}));}
+  };
+  q.addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
+  root.append(h('div',{class:'block'},
+    h('div',{class:'bhead'},h('strong',{text:'搜尋並收藏 YouTube 頻道'})),
+    h('div',{class:'row'},h('div',{class:'grow'},q),h('button',{onclick:doSearch,text:'搜尋'})),res));
+  const c=db.channels.find(x=>x.id===ui.ch)||null;
+  if(!c)ui.ch=null;
+  root.append(catBlock('我的 YouTube 頻道（點選頻道看最新影片）',db.channels,c,x=>x.name,id=>{
+    if(ui.ch===id){ui.ch=null;renderYt();return;}
+    ui.ch=id;renderYt();const n=db.channels.find(x=>x.id===id);if(n&&!n.vids.length)refreshCh(n,true);
+  },{
+    extra:c&&ib('⟳','重新整理頻道影片',()=>refreshCh(c)),
+    rename:async()=>{const r=await ask('頻道改名',[{key:'n',label:'名稱',value:c.name}]);if(r&&r.n){c.name=r.n;save();renderYt();}},
+    up:()=>{if(move(db.channels,db.channels.indexOf(c),-1)){save();renderYt();}},
+    down:()=>{if(move(db.channels,db.channels.indexOf(c),1)){save();renderYt();}},
+    del:async()=>{if(await confirmBox('取消收藏「'+c.name+'」？')){db.channels.splice(db.channels.indexOf(c),1);ui.ch=null;save();renderYt();}}
+  }));
+  if(!c){root.append(h('div',{class:'hint',text:db.channels.length?'點選上方頻道名稱，即可看到最新影片。':'尚未收藏任何頻道。請在上方搜尋頻道名稱後按「＋ 收藏」。'}));return;}
+  const blk=h('div',{class:'block'},
+    h('div',{class:'bhead'},h('div',{class:'row'},c.image&&h('img',{class:'cover',src:c.image,alt:''}),h('strong',{text:c.name})),
+      h('span',{class:'meta',text:c.at?'更新於 '+new Date(c.at).toLocaleString('zh-TW'):''})));
+  if(!c.vids.length)blk.append(h('div',{class:'hint',text:'尚無影片資料，請稍候，或按上方 ⟳ 重新整理。'}));
+  c.vids.forEach(v=>{
+    const url='https://www.youtube.com/watch?v='+v.id;
+    const fav=favOf(url);
+    blk.append(h('div',{class:'item ep'+(url===playingKey?' playing':'')},
+      h('div',{class:'epl'},h('span',{class:'meta',text:fmtDate(v.date)}),
+        h('div',{class:'ops'},ib(fav?'★':'☆',fav?'已收藏（再按一次取消收藏）':'收藏到播放清單',async()=>{
+          if(favOf(url)){if(!await confirmBox('取消收藏「'+v.title+'」？將從所有播放清單移除這部影片。'))return;unfav(url);save();toast('已取消收藏');renderYt();return;}
+          const sub=await pickSub();if(!sub)return;
+          sub.items.push({id:uid(),type:'youtube',title:v.title,url,image:v.image||''});
+          save();toast('已收藏到「'+sub.name+'」');renderYt();
+        },'star'+(fav?' fav':'')))),
+      h('button',{class:'ititle top',onclick:()=>{queue=null;playItem({id:uid(),type:'youtube',title:v.title,url,image:v.image||''});}},h('span',{class:'t',text:v.title}))));
+  });
+  root.append(blk);
+}
+
 /* ---------- 分頁與初始化 ---------- */
-function refreshLists(){if(!$('#tab-pl').hidden)renderPL();if(!$('#tab-pod').hidden)renderEps();}
+function refreshLists(){if(!$('#tab-pl').hidden)renderPL();if(!$('#tab-pod').hidden)renderEps();if(!$('#tab-yt').hidden)renderYt();}
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
-  ['pl','pod','bk'].forEach(t=>$('#tab-'+t).hidden=(t!==b.dataset.tab));
+  ['pl','pod','yt','bk'].forEach(t=>$('#tab-'+t).hidden=(t!==b.dataset.tab));
   if(b.dataset.tab==='pl')renderPL();
   if(b.dataset.tab==='pod')renderPod();
+  if(b.dataset.tab==='yt')renderYt();
 });
 $('#moreCtlBtn').onclick=()=>{const b=$('#moreCtl');b.hidden=!b.hidden;$('#moreCtlBtn').setAttribute('aria-expanded',String(!b.hidden));};
 $('#clearUrl').onclick=()=>{const i=$('#ytUrl');i.value='';i.focus();};
