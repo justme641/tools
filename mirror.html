@@ -201,6 +201,7 @@
       <div id="fsBar"><button id="fsMirror" title="鏡像翻轉">↔ 鏡像</button><button id="fsExit">✕ 離開全螢幕</button></div>
     </div>
     <div class="now"><span id="nowTitle"></span><a id="nowLink" target="_blank" rel="noopener" hidden>↗ 在原站開啟</a></div>
+    <div class="timeinfo" id="timeInfo" style="color:var(--sub);font-size:12px;min-height:16px;margin:2px 0 6px"></div>
 
     <div class="controls">
       <div class="control-row">
@@ -280,6 +281,9 @@
     <div class="changelog-item">
       <strong>v1.2 (2026-10-25)</strong>
       <ul>
+        <li>主分類列移除「💾 媒體庫」；媒體庫檢視改由「來源」列的「媒體庫」進入（在 ALL 下）。</li>
+        <li>匯出備份：Podcast 單集每次完整聽完，會記錄開始與結束日期時間（僅寫入匯出檔，網頁上不顯示）。</li>
+        <li>播放視窗：單曲標題下方新增灰字「已播放／總長度・剩餘」。</li>
         <li>播放清單：媒體庫內尚未分類的檔案，現在會直接出現在「ALL」清單（標示「未分類（媒體庫）」），按「＋分類」即可放入任一主／次分類；「💾 媒體庫」檢視也能直接按「＋ 放入主／次分類」，並顯示該檔案已放在哪些清單。放入後就和一般項目一樣可排序、篩選。</li>
         <li>Threads：支援手機版分享短連結（threads.com/share/代碼），會透過轉接服務解析出原貼文網址；若解析失敗會提示改貼完整網址。</li>
         <li>播放速度選項：1.25x 改為「稍快」。</li>
@@ -699,6 +703,19 @@ function detect(v){
 }
 
 
+function updTimeInfo(){
+  const el=$('#timeInfo');if(!el)return;
+  let t='';
+  try{
+    if(cur&&cur.type!=='ig'){
+      let c,d;
+      if(isYT()){c=ytPlayer.getCurrentTime();d=ytPlayer.getDuration();}else{c=video.currentTime;d=video.duration;}
+      if(isFinite(c)&&isFinite(d)&&d>0)t='已播放 '+fmtT(c)+' / '+fmtT(d)+'・剩餘 '+fmtT(Math.max(0,d-c));
+    }
+  }catch(e){}
+  if(el.textContent!==t)el.textContent=t;
+}
+setInterval(updTimeInfo,500);
 function recordDur(d){
   d=Math.round(d);if(!cur||!isFinite(d)||d<=0)return;
   curDur=d;let ch=false;const k=keyOf(cur);
@@ -755,7 +772,7 @@ function playItem(it,auto,seek){
   const tok=++playTok;
   const quiet=auto==='resume';
   if(!quiet)resumePlay=true;
-  stopAll();cur=it;curDur=0;playingKey=keyOf(it);curBlob=null;hideCover();
+  stopAll();cur=it;curDur=0;if(!quiet)playStart=Date.now();playingKey=keyOf(it);curBlob=null;hideCover();
   pendingSeek=seek>0?seek:0;
   wrap.classList.toggle('ig',it.type==='ig');
   $('#nowTitle').textContent=it.title||'';
@@ -806,8 +823,15 @@ function prevItem(){
   let n=queue.i-1;if(n<0)n=(prefs.loop||queue.loop)?queue.items.length-1:0;
   queue.i=n;playItem(queue.items[n]);
 }
+let playStart=Date.now();
 function countPlay(){
   if(!cur)return;const k=keyOf(cur);let ch=false;
+  const now=Date.now();
+  if(cur.src==='Podcast'){
+    const rec={s:new Date(playStart).toISOString(),e:new Date(now).toISOString()};
+    db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(it=>{if(keyOf(it)===k){it.log=(it.log||[]).concat(rec).slice(-200);ch=true;}})));
+  }
+  playStart=now;
   db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(it=>{if(keyOf(it)===k){it.plays=(it.plays||0)+1;ch=true;}})));
   if(cur.type==='local'){const lm=db.libmeta[libKey(cur)]=db.libmeta[libKey(cur)]||{};lm.plays=(lm.plays||0)+1;ch=true;}
   if(ch){save();if(!$('#tab-pl').hidden)renderPL();}
@@ -1202,6 +1226,7 @@ async function assignLib(it){
 function renderPL(){
   const root=$('#plRoot');root.replaceChildren();
   if(!ui.main)ui.main=ALL;
+  if(ui.main===LIB){ui.main=ALL;ui.srcf='媒體庫';}
   const special=ui.main===ALL||ui.main===LIB;
   const main=special?null:(db.mains.find(m=>m.id===ui.main)||null);
   if(!special&&!main)ui.main=ALL;
@@ -1220,11 +1245,9 @@ function renderPL(){
     down:()=>{if(move(db.mains,db.mains.indexOf(main),1)){save();renderPL();}},
     del:async()=>{if(await confirmBox('刪除主分類「'+main.name+'」及其下所有次分類與 '+countOf(main)+' 個項目？此動作無法復原（媒體庫內的檔案不受影響）。')){db.mains.splice(db.mains.indexOf(main),1);ui.main=ui.sub=ALL;save();renderPL();}}
   },[
-    {on:ui.main===ALL,label:'ALL ('+entriesOf(ALL,ALL).length+')',pick:()=>{ui.main=ALL;ui.sub=ALL;renderPL();}},
-    {on:ui.main===LIB,label:'💾 媒體庫'+(libKeySet.size?' ('+libKeySet.size+')':''),pick:()=>{ui.main=LIB;ui.sub=ALL;renderPL();}}
+    {on:ui.main===ALL,label:'ALL ('+entriesOf(ALL,ALL).length+')',pick:()=>{ui.main=ALL;ui.sub=ALL;renderPL();}}
   ]));
 
-  if(ui.main===LIB){renderLibView(root);appendFileInput(root);return;}
 
   if(main){
     root.append(catBlock('次分類（'+main.name+'）',main.subs,sub,c=>c.name+' ('+c.items.length+')',id=>{ui.sub=id;renderPL();},{
@@ -1247,6 +1270,7 @@ function renderPL(){
       SRCS.filter(k=>srcCount[k]).map(k=>h('button',{class:'chip'+(ui.srcf===k?' on':''),onclick:()=>{ui.srcf=k;renderPL();},text:k+' ('+srcCount[k]+')'})));
     root.append(h('div',{class:'block'},h('div',{class:'bhead'},h('strong',{text:'來源'})),chips));
   }
+  if(ui.main===ALL&&ui.srcf==='媒體庫'){renderLibView(root);appendFileInput(root);return;}
   const entries=(ui.srcf&&ui.srcf!==ALL)?allEntries.filter(e=>srcKey(e.it)===ui.srcf):allEntries;
   const totSec=entries.reduce((a,e)=>a+(e.it.dur||0),0),unk=entries.filter(e=>!e.it.dur).length;
   const totLen=totSec?fmtT(totSec)+(unk?'+':''):'';
@@ -1320,7 +1344,7 @@ async function fillDurs(){
 function appendFileInput(root){
   root.append(h('input',{type:'file',id:'plFiles',multiple:true,hidden:true,accept:'video/*,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.mp4,.webm,.mkv',onchange:async e=>{
     const files=[...e.target.files];e.target.value='';if(!files.length)return;
-    if(ui.main===LIB){await libSaveFiles(files);return;}
+    if(ui.main===ALL&&ui.srcf==='媒體庫'){await libSaveFiles(files);return;}
     const s=await pickSub();if(!s)return;
     files.forEach(f=>{
       const it={id:uid(),type:'local',title:stripExt(f.name),name:f.name,size:f.size};
@@ -1345,7 +1369,7 @@ function renderLibView(root){
       editBtn()]),
     info,list));
   libList().then(async recs=>{
-    if(ui.main!==LIB)return;
+    if(!(ui.main===ALL&&ui.srcf==='媒體庫'))return;
     recs.sort((a,b)=>b.added-a.added);
     libItems=recs.map(r=>({id:uid(),type:'local',title:stripExt(r.name),name:r.name,size:r.size}));
     let est='';
@@ -1740,7 +1764,7 @@ function cleanData(d){
     subs:(Array.isArray(m&&m.subs)?m.subs:[]).map(s=>({id:uid(),name:str(s&&s.name)||'未命名',
       items:(Array.isArray(s&&s.items)?s.items:[]).map(it=>{
         const type=['youtube','url','local','ig'].includes(it&&it.type)?it.type:'url';
-        return {id:uid(),type,title:str(it&&it.title)||'未命名',url:str(it&&it.url,2000),name:str(it&&it.name),size:Number(it&&it.size)||0,image:safeUrl(str(it&&it.image,2000)),src:str(it&&it.src,20),dur:Math.max(0,Math.round(Number(it&&it.dur)||0)),plays:Math.max(0,Math.round(Number(it&&it.plays)||0)),kind:(it&&it.kind==='v')?'v':(it&&it.kind==='a'?'a':undefined)};
+        return {id:uid(),type,title:str(it&&it.title)||'未命名',url:str(it&&it.url,2000),name:str(it&&it.name),size:Number(it&&it.size)||0,image:safeUrl(str(it&&it.image,2000)),src:str(it&&it.src,20),dur:Math.max(0,Math.round(Number(it&&it.dur)||0)),plays:Math.max(0,Math.round(Number(it&&it.plays)||0)),log:Array.isArray(it&&it.log)?it.log.slice(-200).map(x=>({s:str(x&&x.s,40),e:str(x&&x.e,40)})).filter(x=>x.s&&x.e):undefined,kind:(it&&it.kind==='v')?'v':(it&&it.kind==='a'?'a':undefined)};
       }).filter(it=>it.type==='local'?it.name:(it.type==='youtube'?!!ytId(it.url):(it.type==='ig'?igOk(it.url):safeMedia(it.url))))
     }))}));
   const podcasts=(Array.isArray(d.podcasts)?d.podcasts:[]).map(p=>({id:uid(),name:str(p&&p.name)||'Podcast',feed:str(p&&p.feed,2000),image:safeUrl(str(p&&p.image,2000)),cid:String((p&&p.cid)||'').replace(/\D/g,''),eps:[],at:0}))
