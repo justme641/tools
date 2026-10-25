@@ -283,6 +283,7 @@
     <div class="changelog-item">
       <strong>v1.2 (2026-10-25)</strong>
       <ul>
+        <li>YouTube 頻道影片抓取重寫：改為 RSS、Piped、Invidious、頻道頁面四個來源同時查詢，最先成功者採用（最多 15 部），縮圖固定使用 YouTube 影片縮圖網址；畫面顯示本次使用的來源。</li>
         <li>新增「▶ YouTube」分頁（Podcast 與說明之間）：可搜尋 YouTube 頻道（或貼頻道網址／@名稱）並收藏，點頻道看最新影片（約 15 部）、點標題播放、☆ 收藏到播放清單；頻道清單可改名、排序、刪除，並包含在匯出／匯入備份中。搜尋靠公開服務與轉接，可能偶爾失敗。</li>
         <li>主分類列移除「💾 媒體庫」；媒體庫檢視改由「來源」列的「媒體庫」進入（在 ALL 下）。</li>
         <li>匯出備份：Podcast 單集每次完整聽完，會記錄開始與結束日期時間（僅寫入匯出檔，網頁上不顯示）。</li>
@@ -1885,28 +1886,83 @@ async function resolveChannel(input){
   }
   return m?{cid:m[1],name,image}:null;
 }
-/* 頻道最新影片：YouTube 官方 RSS（約 15 部），經轉接服務讀取 */
-async function channelVideos(cid){
-  const t=await fetchFeedText('https://www.youtube.com/feeds/videos.xml?channel_id='+cid);
-  const doc=new DOMParser().parseFromString(t,'text/xml');
-  if(doc.querySelector('parsererror'))throw new Error('parse');
-  const vids=[...doc.getElementsByTagName('entry')].map(en=>{
-    const g=n=>{const x=en.getElementsByTagName(n)[0];return x?x.textContent.trim():'';};
-    const th=en.getElementsByTagName('media:thumbnail')[0];
-    return {id:g('yt:videoId'),title:g('title')||'未命名影片',date:g('published'),image:th?safeUrl(th.getAttribute('url')):''};
-  }).filter(v=>/^[\w-]{11}$/.test(v.id));
-  if(!vids.length)throw new Error('empty');
+/* 頻道最新影片：四個來源同時查詢，最先取得影片清單者勝出（RSS、Piped、Invidious、頻道頁面） */
+const CH_LIMIT=15;
+const isVid=id=>/^[\w-]{11}$/.test(id||'');
+const mkVid=(id,title,date,ago)=>({id,title:String(title||'未命名影片').trim(),date:date||'',ago:ago||'',image:'https://i.ytimg.com/vi/'+id+'/mqdefault.jpg'});
+const proxied=u=>{const e=encodeURIComponent(u);return ['https://api.allorigins.win/raw?url='+e,'https://corsproxy.io/?'+e,'https://api.codetabs.com/v1/proxy?quest='+e,'https://api.cors.lol/?url='+e,'https://thingproxy.freeboard.io/fetch/'+u];};
+/* 依序同時請求多個網址，回傳最先「內容通過檢查」者 */
+const firstText=(urls,ok)=>anyOf(urls.map(async u=>{
+  const r=await fetchTO(u,15000);if(!r.ok)throw new Error('http '+r.status);
+  const t=await r.text();if(ok&&!ok.test(t))throw new Error('內容不符');return t;
+}));
+const firstJson=urls=>anyOf(urls.map(async u=>{
+  const r=await fetchTO(u,15000);if(!r.ok)throw new Error('http '+r.status);return r.json();
+}));
+async function vidsFromRss(cid){
+  const t=await firstText(proxied('https://www.youtube.com/feeds/videos.xml?channel_id='+cid),/<entry[\s>]/);
+  const doc=new DOMParser().parseFromString(t.replace(/^﻿/,''),'text/xml');
+  if(doc.querySelector('parsererror'))throw new Error('RSS 解析失敗');
+  const text=(en,tag)=>{const x=en.getElementsByTagName(tag)[0];return x?x.textContent.trim():'';};
+  const list=[...doc.getElementsByTagName('entry')].map(en=>mkVid(text(en,'yt:videoId'),text(en,'title'),text(en,'published'))).filter(v=>isVid(v.id));
   const ft=doc.getElementsByTagName('title')[0];
-  return {name:ft?ft.textContent.trim():'',vids};
+  return {name:ft?ft.textContent.trim():'',list};
+}
+async function vidsFromPiped(cid){
+  const j=await firstJson(['pipedapi.kavin.rocks','api.piped.private.coffee','pipedapi.adminforge.de'].map(h=>'https://'+h+'/channel/'+cid));
+  const list=(j.relatedStreams||[]).map(x=>{
+    const m=String(x.url||'').match(/[?&]v=([\w-]{11})/);
+    return m?mkVid(m[1],x.title,x.uploaded>0?new Date(x.uploaded).toISOString():'',x.uploadedDate||''):null;
+  }).filter(Boolean);
+  return {name:j.name||'',list};
+}
+async function vidsFromInvidious(cid){
+  const j=await firstJson(['yewtu.be','inv.nadeko.net','invidious.nerdvpn.de'].map(h=>'https://'+h+'/api/v1/channels/'+cid+'/videos?sort_by=newest'));
+  const arr=Array.isArray(j)?j:(j.videos||[]);
+  const list=arr.filter(x=>isVid(x.videoId)).map(x=>mkVid(x.videoId,x.title,x.published>0?new Date(x.published*1000).toISOString():'',x.publishedText||''));
+  return {name:'',list};
+}
+async function vidsFromPage(cid){
+  const t=await firstText(proxied('https://www.youtube.com/channel/'+cid+'/videos'),/ytInitialData/);
+  const m=t.match(/ytInitialData\s*=\s*(\{[\s\S]*?\});\s*<\/script>/);if(!m)throw new Error('頁面解析失敗');
+  const data=JSON.parse(m[1]),list=[],seen=new Set();
+  (function walk(o){
+    if(!o||typeof o!=='object')return;
+    const v=o.videoRenderer||o.gridVideoRenderer;
+    if(v&&isVid(v.videoId)){
+      if(!seen.has(v.videoId)){seen.add(v.videoId);
+        const ti=v.title&&(v.title.simpleText||(v.title.runs||[]).map(r=>r.text).join(''));
+        list.push(mkVid(v.videoId,ti,'',(v.publishedTimeText&&v.publishedTimeText.simpleText)||''));}
+      return;
+    }
+    for(const k in o)walk(o[k]);
+  })(data);
+  const h1=t.match(/<meta property="og:title" content="([^"]+)"/);
+  return {name:h1?h1[1]:'',list};
+}
+async function channelVideos(cid){
+  const sources=[['RSS',vidsFromRss],['Piped',vidsFromPiped],['Invidious',vidsFromInvidious],['頻道頁面',vidsFromPage]];
+  const r=await anyOf(sources.map(([name,fn])=>fn(cid).then(res=>{
+    if(!res.list.length)throw new Error('沒有影片');return {...res,src:name};
+  })));
+  const dated=r.list.every(v=>v.date);
+  if(dated)r.list.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  r.list=r.list.slice(0,CH_LIMIT);
+  return r;
 }
 async function refreshCh(c,quiet){
   if(!quiet)toast('讀取頻道影片中…');
   try{
     const r=await channelVideos(c.cid);
-    c.vids=r.vids;c.at=Date.now();if((!c.name||c.name==='YouTube 頻道')&&r.name)c.name=r.name;
+    c.vids=r.list;c.src=r.src;c.at=Date.now();
+    if((!c.name||c.name==='YouTube 頻道')&&r.name)c.name=r.name;
     save();if(!$('#tab-yt').hidden)renderYt();
-    if(!quiet)toast('已更新，共 '+c.vids.length+' 部');else $('#toast').style.display='none';
-  }catch(e){toast('讀取頻道影片失敗，請稍後按 ⟳ 重試。');}
+    if(!quiet)toast('已更新，共 '+c.vids.length+' 部（來源：'+r.src+'）');else $('#toast').style.display='none';
+    return true;
+  }catch(e){
+    toast('讀取頻道影片失敗：RSS、Piped、Invidious、頻道頁面四個來源都連不上，請稍後按 ⟳ 重試。');
+    return false;
+  }
 }
 function addChannel(x){
   const ex=db.channels.find(c=>c.cid===x.cid);
@@ -1952,13 +2008,13 @@ function renderYt(){
   if(!c){root.append(h('div',{class:'hint',text:db.channels.length?'點選上方頻道名稱，即可看到最新影片。':'尚未收藏任何頻道。請在上方搜尋頻道名稱後按「＋ 收藏」。'}));return;}
   const blk=h('div',{class:'block'},
     h('div',{class:'bhead'},h('div',{class:'row'},c.image&&h('img',{class:'cover',src:c.image,alt:''}),h('strong',{text:c.name})),
-      h('span',{class:'meta',text:c.at?'更新於 '+new Date(c.at).toLocaleString('zh-TW'):''})));
+      h('span',{class:'meta',text:(c.src?'來源：'+c.src+'・':'')+(c.at?'更新於 '+new Date(c.at).toLocaleString('zh-TW'):'')})));
   if(!c.vids.length)blk.append(h('div',{class:'hint',text:'尚無影片資料，請稍候，或按上方 ⟳ 重新整理。'}));
   c.vids.forEach(v=>{
     const url='https://www.youtube.com/watch?v='+v.id;
     const fav=favOf(url);
     blk.append(h('div',{class:'item ep'+(url===playingKey?' playing':'')},
-      h('div',{class:'epl'},h('span',{class:'meta',text:fmtDate(v.date)}),
+      h('div',{class:'epl'},h('span',{class:'meta',text:v.date?fmtDate(v.date):(v.ago||'')}),
         h('div',{class:'ops'},ib(fav?'★':'☆',fav?'已收藏（再按一次取消收藏）':'收藏到播放清單',async()=>{
           if(favOf(url)){if(!await confirmBox('取消收藏「'+v.title+'」？將從所有播放清單移除這部影片。'))return;unfav(url);save();toast('已取消收藏');renderYt();return;}
           const sub=await pickSub();if(!sub)return;
