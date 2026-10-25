@@ -164,14 +164,14 @@
 </head>
 <body>
 
-  <h1>影音播放器 <small>v1.1</small></h1>
+  <h1>影音播放器 <small>v1.2</small></h1>
   <button id="installBtn" class="btn-download" hidden style="margin-bottom:14px">📲 安裝到主畫面</button>
 
   <div class="container">
     <div class="input-group">
       <label class="small">選擇本機影片或音訊檔 (MP3, M4A 等，可一次選多個)：</label>
       <input type="file" id="localVideo" accept="video/*,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.mp4,.webm,.mkv" multiple>
-      <div class="row" style="gap:2px"><label class="small"><input type="checkbox" id="saveLib" checked> 同時存入「媒體庫」</label><button type="button" class="linkbtn" id="moreBtn">更多 ▾</button></div>
+      <div class="row" style="gap:2px"><label class="small"><input type="checkbox" id="saveLib"> 同時存入「媒體庫」</label><button type="button" class="linkbtn" id="moreBtn">更多 ▾</button></div>
       <div class="hint" id="moreInfo" hidden>
         <div>（記在這台裝置的瀏覽器內，下次不用重新選檔。檔案存在瀏覽器的網站資料裡，不是手機的資料夾，所以在檔案管理員看不到；清除此網站資料就會消失。）</div>
         <div>下載音訊可以讓你聽歌不中斷</div>
@@ -200,7 +200,7 @@
       <div id="placeholder">請選擇本機影音檔或載入 YouTube／Instagram 網址</div>
       <div id="fsBar"><button id="fsMirror" title="鏡像翻轉">↔ 鏡像</button><button id="fsExit">✕ 離開全螢幕</button></div>
     </div>
-    <div class="now"><span id="nowTitle"></span><a id="nowLink" target="_blank" rel="noopener" hidden>↗ 在 Instagram 開啟</a></div>
+    <div class="now"><span id="nowTitle"></span><a id="nowLink" target="_blank" rel="noopener" hidden>↗ 在原站開啟</a></div>
 
     <div class="controls">
       <div class="control-row">
@@ -219,7 +219,7 @@
           <option value="0.5">0.5x (慢速)</option>
           <option value="0.75">0.75x (稍慢)</option>
           <option value="1" selected>1.0x (原速)</option>
-          <option value="1.25">1.25x (稍速)</option>
+          <option value="1.25">1.25x (稍快)</option>
           <option value="1.5">1.5x (快速)</option>
           <option value="2">2.0x (超快速)</option>
         </select>
@@ -277,6 +277,15 @@
 
     <details class="changelog-section">
     <summary class="changelog-title">📜 修改歷程紀錄 (Changelog)（點此展開／收合）</summary>
+    <div class="changelog-item">
+      <strong>v1.2 (2026-10-25)</strong>
+      <ul>
+        <li>播放速度選項：1.25x 改為「稍快」。</li>
+        <li>「同時存入媒體庫」預設改為不打勾。</li>
+        <li>播放清單：新增「來源」分類篩選（YouTube、Podcast、媒體庫、Instagram、Threads、連結，各顯示數量），可與主／次分類搭配；清單標題與合計長度會隨篩選更新。</li>
+        <li>影片網址：新增 Threads 貼文（threads.net／threads.com 的 /@帳號/post/代碼）嵌入播放；與 Instagram 相同，需對方允許嵌入，若只出現登入畫面請用「在原站開啟」。</li>
+      </ul>
+    </div>
     <div class="changelog-item">
       <strong>v1.1 (2026-10-24)</strong>
       <ul>
@@ -629,8 +638,14 @@ function igParse(u){
   try{
     const x=new URL(String(u).trim());
     const host=x.hostname.replace(/^www\.|^m\./,'');
-    if(host!=='instagram.com'&&host!=='instagr.am')return null;
     const p=x.pathname.split('/').filter(Boolean);
+    if(host==='threads.net'||host==='threads.com'){
+      const i=p.findIndex(s=>s==='post'||s==='t');
+      const user=p.find(s=>s[0]==='@');
+      if(i<0||!p[i+1]||!/^[\w-]{5,}$/.test(p[i+1]))return {bad:true,threads:true};
+      return {threads:true,user:user||'',code:p[i+1]};
+    }
+    if(host!=='instagram.com'&&host!=='instagr.am')return null;
     if(p[0]==='share')return {share:true};
     const i=p.findIndex(s=>/^(p|reel|reels|tv)$/.test(s));
     if(i<0||!p[i+1]||!/^[\w-]{5,}$/.test(p[i+1]))return {bad:true};
@@ -638,13 +653,15 @@ function igParse(u){
   }catch(e){return null;}
 }
 const igOk=u=>{const g=igParse(u);return !!(g&&g.code);};
-const igCanon=g=>'https://www.instagram.com/'+g.kind+'/'+g.code+'/';
+const igCanon=g=>g.threads?('https://www.threads.com/'+(g.user||'@threads')+'/post/'+g.code):('https://www.instagram.com/'+g.kind+'/'+g.code+'/');
+const igEmbed=g=>igCanon(g).replace(/\/?$/,'/embed');
 function detect(v){
   v=String(v||'').trim();if(!v)return null;
   const id=ytId(v);if(id)return {type:'youtube',url:'https://www.youtube.com/watch?v='+id};
   const g=igParse(v);
   if(g){
     if(g.share)return {err:'這是 Instagram「分享短連結」，無法直接嵌入。請先在瀏覽器開啟它，再複製網址列中含 /reel/ 或 /p/ 的完整網址。'};
+    if(g.bad&&g.threads)return {err:'這個 Threads 網址不是單一貼文（網址需含 /@帳號/post/代碼）。'};
     if(g.bad)return {err:'這個 Instagram 網址不是單一貼文或影片（網址需含 /reel/ 或 /p/ 開頭的段落）。'};
     return {type:'ig',url:igCanon(g)};
   }
@@ -724,8 +741,8 @@ function playItem(it,auto,seek){
   }else if(it.type==='ig'){
     const g=igParse(it.url);
     if(!g||!g.code){toast('Instagram 網址格式有誤');return;}
-    showSurface('ig');igFrame.src='https://www.instagram.com/'+g.kind+'/'+g.code+'/embed/';
-    if(!quiet)toast('Instagram 影片請按畫面中的播放鈕；若只看到登入畫面，請按下方「在 Instagram 開啟」。');
+    showSurface('ig');igFrame.src=igEmbed(g);
+    if(!quiet)toast((g.threads?'Threads':'Instagram')+' 影片請按畫面中的播放鈕；若只看到登入畫面，請按下方「在 '+(g.threads?'Threads':'Instagram')+' 開啟」。');
   }else if(it.type==='local'){
     resolveLocal(it).then(b=>{
       if(tok!==playTok)return;
@@ -1099,7 +1116,8 @@ function catBlock(label,list,sel,lab,onSelect,ops,extras){
   return h('div',{class:'block'},h('div',{class:'bhead'},h('strong',{text:label}),bar),chips);
 }
 /* 項目來源（顯示在標題前的灰色小字） */
-const srcLabel=it=>it.src||(it.type==='youtube'?'YT':it.type==='ig'?'IG':it.type==='local'?'本機':'連結');
+const isThreads=it=>it.type==='ig'&&/threads\.(net|com)/i.test(it.url||'');
+const srcLabel=it=>it.src||(it.type==='youtube'?'YT':isThreads(it)?'Threads':it.type==='ig'?'IG':it.type==='local'?'本機':'連結');
 let plMore=false;
 const backupStale=()=>!db.lastExport?db.mains.some(m=>m.subs.some(s=>s.items.length)):(Date.now()-db.lastExport>30*864e5);
 const editBtn=()=>h('button',{class:plEdit?'on':'',onclick:()=>{plEdit=!plEdit;renderPL();},text:plEdit?'✔ 完成編輯':'✎ 編輯'});
@@ -1170,10 +1188,21 @@ function renderPL(){
     },[{on:ui.sub===ALL,label:'ALL ('+countOf(main)+')',pick:()=>{ui.sub=ALL;renderPL();}}]));
   }
 
-  const entries=entriesOf(ui.main,ui.sub);
+  const srcKey=it=>it.type==='youtube'?'YouTube':isThreads(it)?'Threads':it.type==='ig'?'Instagram':it.type==='local'?'媒體庫':it.src==='Podcast'?'Podcast':'連結';
+  const allEntries=entriesOf(ui.main,ui.sub);
+  const SRCS=['YouTube','Podcast','媒體庫','Instagram','Threads','連結'];
+  const srcCount={};allEntries.forEach(e=>{const k=srcKey(e.it);srcCount[k]=(srcCount[k]||0)+1;});
+  if(ui.srcf&&ui.srcf!==ALL&&!srcCount[ui.srcf])ui.srcf=ALL;
+  if(allEntries.length){
+    const chips=h('div',{class:'chips'},
+      h('button',{class:'chip'+(!ui.srcf||ui.srcf===ALL?' on':''),onclick:()=>{ui.srcf=ALL;renderPL();},text:'全部 ('+allEntries.length+')'}),
+      SRCS.filter(k=>srcCount[k]).map(k=>h('button',{class:'chip'+(ui.srcf===k?' on':''),onclick:()=>{ui.srcf=k;renderPL();},text:k+' ('+srcCount[k]+')'})));
+    root.append(h('div',{class:'block'},h('div',{class:'bhead'},h('strong',{text:'來源'})),chips));
+  }
+  const entries=(ui.srcf&&ui.srcf!==ALL)?allEntries.filter(e=>srcKey(e.it)===ui.srcf):allEntries;
   const totSec=entries.reduce((a,e)=>a+(e.it.dur||0),0),unk=entries.filter(e=>!e.it.dur).length;
   const totLen=totSec?fmtT(totSec)+(unk?'+':''):'';
-  const viewName=ui.main===ALL?'全部':(sub?main.name+' / '+sub.name:main.name+'（全部次分類）');
+  const viewName=(ui.main===ALL?'全部':(sub?main.name+' / '+sub.name:main.name+'（全部次分類）'))+((ui.srcf&&ui.srcf!==ALL)?' ‧ '+ui.srcf:'');
   const blk=h('div',{class:'block'},
     h('div',{class:'bhead'},
       h('strong',{text:viewName+'（'+entries.length+(totLen?'・'+totLen:'')+'）'}),

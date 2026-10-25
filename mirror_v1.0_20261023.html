@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>影音播放器</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#121212">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <style>
+    [hidden]{display:none !important}
+    :root{--bg:#121212;--card:#1e1e1e;--text:#e0e0e0;--sub:#9ca3af;--line:#333;--field:#2a2a2a;--accent:#2563eb;--danger:#f87171;--hl:#26324d}
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; }
+    body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; padding: 20px; min-height: 100vh; }
+    h1 { margin-bottom: 20px; font-size: 1.5rem; text-align: center; color: #ffffff; }
+    h1 small { font-size: .75rem; color: var(--sub); font-weight: 400; }
+    .container { width: 100%; max-width: 800px; background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-bottom: 16px; }
+    .input-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    input[type="text"], input[type="url"], input[type="search"], input[type="file"], select { padding: 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--field); color: #fff; width: 100%; font-size: 1rem; }
+    select { width: auto; }
+    label.small { font-size: 0.85rem; color: #aaa; }
+
+    button, .btn { padding: 10px 16px; border: 1px solid #4b5563; border-radius: 6px; font-weight: bold; cursor: pointer; background: #374151; color: white; transition: 0.2s; font-size: .95rem; min-height: 42px; display: inline-flex; align-items: center; gap: 4px; }
+    button:hover, .btn:hover { background: #4b5563; }
+    .primary { background: #2563eb; border-color: #3b82f6; }
+    .primary:hover { background: #1d4ed8; }
+    .btn-download { background: #059669; border-color: #047857; }
+    .btn-download:hover { background: #047857; }
+    .btn-active, .on { background: #10b981 !important; border-color: #059669 !important; }
+    .ib { padding: 4px 10px; min-height: 36px; font-weight: normal; }
+    .ib.danger { color: var(--danger); }
+
+    .video-wrapper { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; }
+    .video-wrapper:fullscreen { aspect-ratio: auto; width: 100vw; height: 100vh; border-radius: 0; }
+    .video-wrapper:-webkit-full-screen { aspect-ratio: auto; width: 100vw; height: 100vh; border-radius: 0; }
+    .media { position: absolute; inset: 0; transition: transform 0.3s ease; }
+    .video-wrapper.mirror .media { transform: scaleX(-1); }
+    #myVideo { width: 100%; height: 100%; background: #000; display: none; }
+    #ytBox { position: absolute; inset: 0; display: none; }
+    #ytBox iframe { width: 100%; height: 100%; border: none; }
+    #placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #888; text-align: center; padding: 16px; }
+    .now { margin: 8px 2px 0; font-size: .85rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-top: 15px; }
+    .control-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .lbl { font-size: .85rem; color: var(--sub); }
+
+    .download-tip { background: #252525; padding: 10px 14px; border-radius: 6px; font-size: 0.85rem; color: #aaa; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .download-tip a { color: #3b82f6; text-decoration: none; font-weight: bold; }
+    .download-tip a:hover { text-decoration: underline; }
+
+    .tabs { width: 100%; max-width: 800px; display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; }
+    .tabs button { white-space: nowrap; }
+    .block { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+    .bhead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; align-items: center; margin-bottom: 8px; }
+    .ops { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .row.end { justify-content: flex-end; }
+    .grow { flex: 1 1 200px; min-width: 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { border-radius: 999px; padding: 5px 14px; min-height: 36px; font-weight: normal; }
+    .item { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding: 8px 2px; }
+    .item.playing { background: var(--hl); border-radius: 8px; padding-left: 8px; }
+    .ititle { background: none !important; border: 0; text-align: left; padding: 2px 0; min-height: 32px; width: 100%; font-weight: normal; display: flex; gap: 6px; align-items: center; }
+    .ititle span.t { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .badge { font-size: 11px; border: 1px solid #4b5563; border-radius: 6px; padding: 0 5px; color: var(--sub); flex: none; }
+    .meta { font-size: 12px; color: var(--sub); }
+    .sr { display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding: 8px 0; }
+    .sr img, .cover { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: var(--line); flex: none; }
+    .hint { font-size: 13px; color: var(--sub); margin: 6px 0; }
+    .hint.warn { color: var(--danger); }
+    ul.hint { padding-left: 20px; }
+    h3 { margin: 14px 0 6px; font-size: 1rem; }
+    .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #000; border: 1px solid #444; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: 90vw; z-index: 50; display: none; }
+    dialog { border: 1px solid #444; border-radius: 12px; background: var(--card); color: var(--text); width: min(92vw, 420px); padding: 16px; }
+    dialog::backdrop { background: rgba(0,0,0,.6); }
+    dialog h3 { margin: 0 0 10px; }
+    dialog label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 8px; }
+    dialog label input { margin-top: 3px; }
+    kbd { border: 1px solid #4b5563; border-radius: 4px; padding: 0 4px; font-size: 12px; }
+
+    .changelog-section { margin-top: 14px; width: 100%; max-width: 800px; background: #181818; padding: 15px 20px; border-radius: 8px; border: 1px solid #282828; }
+    .changelog-title { font-size: 0.95rem; font-weight: bold; color: #9ca3af; margin-bottom: 8px; }
+    .changelog-item { font-size: 0.85rem; color: #6b7280; line-height: 1.5; }
+    .changelog-item ul { margin-left: 20px; margin-top: 4px; }
+    .changelog-item li { margin-bottom: 3px; }
+    .changelog-item a { color: #3b82f6; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <h1>影音播放器 <small>v1.0</small></h1>
+  <button id="installBtn" class="btn-download" hidden style="margin-bottom:14px">📲 安裝到主畫面</button>
+
+  <div class="container">
+    <div class="input-group">
+      <label class="small">選擇本地影片或音訊檔 (MP3, M4A 等，可一次選多個)：</label>
+      <input type="file" id="localVideo" accept="video/*,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.mp4,.webm,.mkv" multiple>
+      <label class="small"><input type="checkbox" id="saveLib" checked> 同時存入「媒體庫」（記在這台裝置的瀏覽器內，下次不用重新選檔）</label>
+
+      <label class="small" style="margin-top: 5px;">貼上 YouTube 影片網址（或影音直連網址）：</label>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;min-width:0">
+        <button class="primary" id="loadUrl">載入播放</button>
+        <button id="clearUrl" title="清除網址">✕ 清除</button>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 5px;">
+        <button class="btn-download" style="font-size: 0.85rem; width: 100%; justify-content:center" onclick="openYTDLnisOrWarn()">📱 複製網址並開啟 YTDLnis 下載</button>
+      </div>
+
+      <div class="download-tip">
+        <span>💡 還沒安裝 YTDLnis 嗎？</span>
+        <a href="https://github.com/deniscerri/ytdlnis/releases" target="_blank" rel="noopener">🔗 點此前往 GitHub 官網下載 APK 檔</a>
+      </div>
+    </div>
+
+    <div class="video-wrapper" id="videoWrapper">
+      <div class="media">
+        <video id="myVideo" controls playsinline></video>
+        <div id="ytBox"><div id="ytPlayer"></div></div>
+      </div>
+      <div id="placeholder">請選擇本地影音檔或載入 YouTube 網址</div>
+    </div>
+    <div class="now" id="nowTitle"></div>
+
+    <div class="controls">
+      <div class="control-row">
+        <button class="btn-secondary" id="mirrorBtn">🪞 鏡像翻轉 (Off)</button>
+        <button class="btn-secondary" id="loopBtn">🔁 循環播放 (Off)</button>
+        <button class="btn-secondary" id="fsBtn">⛶ 全螢幕</button>
+        <button id="prevBtn" title="上一個">⏮</button>
+        <button id="nextBtn" title="下一個">⏭</button>
+      </div>
+      <div class="control-row">
+        <label style="font-size: 0.9rem;">播放速度：</label>
+        <select id="speedSelect">
+          <option value="0.5">0.5x (慢速)</option>
+          <option value="0.75">0.75x (稍慢)</option>
+          <option value="1" selected>1.0x (原速)</option>
+          <option value="1.25">1.25x (快速)</option>
+          <option value="1.5">1.5x</option>
+          <option value="2">2.0x</option>
+        </select>
+      </div>
+    </div>
+    <div class="control-row" style="margin-top: 10px;">
+      <span class="lbl">A-B 重複：</span>
+      <button id="abA">設 A 起點</button>
+      <button id="abB">設 B 終點</button>
+      <button id="abC">清除</button>
+      <span class="lbl" id="abInfo"></span>
+    </div>
+    <div class="hint">快捷鍵：<kbd>空白</kbd> 播放/暫停　<kbd>←</kbd><kbd>→</kbd> 快退/快進 5 秒　<kbd>M</kbd> 鏡像　<kbd>L</kbd> 循環　<kbd>F</kbd> 全螢幕　<kbd>N</kbd>/<kbd>P</kbd> 下一個/上一個。鏡像開啟時，影片內建控制列也會一併左右翻轉。</div>
+  </div>
+
+  <nav class="tabs">
+    <button data-tab="pl" class="on">🎵 播放清單</button>
+    <button data-tab="pod">🎙 Podcast</button>
+    <button data-tab="bk">⚙ 媒體庫／設定</button>
+  </nav>
+
+  <section id="tab-pl" class="container"><div id="plRoot"></div></section>
+  <section id="tab-pod" class="container" hidden><div id="podRoot"></div></section>
+
+  <section id="tab-bk" class="container" hidden>
+    <h3 style="margin-top:0">媒體庫（存在這台裝置）</h3>
+    <div class="hint" id="libInfo"></div>
+    <div id="libBox"></div>
+
+    <h3>網站預設清單</h3>
+    <p class="hint">首次開啟時，會自動讀取與本頁同一個資料夾的 <code>mirror-data.json</code> 作為預設清單（只在這台裝置還沒有任何資料時自動載入一次）。之後也可以手動載入並合併：</p>
+    <button id="remoteBtn">🌐 從網站載入／合併預設清單</button>
+
+    <h3>安裝成 App</h3>
+    <ul class="hint">
+      <li>Android Chrome：選單 → 「安裝應用程式」或「加到主畫面」（若支援，頁面上方也會出現「📲 安裝到主畫面」按鈕）。</li>
+      <li>iPhone Safari：分享 → 「加入主畫面」。</li>
+      <li>安裝後會以獨立視窗開啟，頁面本身可離線開啟；YouTube 與 Podcast 仍需要網路。</li>
+    </ul>
+
+    <h3>關於資料儲存</h3>
+    <ul class="hint">
+      <li>所有資料只存在「這台裝置的這個瀏覽器」，不會上傳到任何伺服器。</li>
+      <li>存入媒體庫的檔案是「複製一份」到瀏覽器，會額外占用這台裝置的儲存空間；不需要時可在上方刪除。</li>
+      <li>清除網站資料、換瀏覽器或換手機，資料就會消失，請定期到播放清單頁匯出備份。</li>
+      <li>匯入其他裝置的備份時，本地檔案（媒體庫）項目會自動略過；同一台裝置的備份則會完整還原。</li>
+    </ul>
+  </section>
+
+  <div class="changelog-section">
+    <div class="changelog-title">📜 修改歷程紀錄 (Changelog)</div>
+    <div class="changelog-item">
+      <strong>v1.0 (2026-10-23)</strong>
+      <ul>
+        <li>創立專案：實現本地影音與 YouTube 嵌入鏡像播放器、全螢幕、循環播放及速度調節。</li>
+        <li>介面調整：優化按鈕配色，將標題簡化為「影音播放器」。</li>
+        <li>功能擴充：新增本地 MP3/M4A 音訊播放支援。</li>
+        <li>下載整合：新增點擊複製網址並嘗試喚醒 YTDLnis App 功能，並在介面加入官方 GitHub Releases 下載專屬直達捷徑。</li>
+        <li>播放優化：支援影音直連網址；YouTube 改用 IFrame API，速度與循環可直接調整且不需重新載入；記住鏡像、循環與速度設定；新增快捷鍵、手機鎖定畫面媒體控制、A-B 區段重複、播放速度 1.5x／2.0x、可一次選取多個本地檔案連續播放；載入失敗時顯示提示。</li>
+        <li>媒體庫：本地影音可存入瀏覽器媒體庫（IndexedDB），下次不用重新選檔即可直接播放。</li>
+        <li>功能擴充：新增自訂播放清單，可建立主分類與次分類，分類與項目皆可改名、刪除、調整順序，項目可移至其他次分類，並可連續播放整份清單。</li>
+        <li>資料管理：新增匯出／匯入（合併或取代）備份檔；首次開啟自動讀取同資料夾的 mirror-data.json 作為預設清單，並可手動載入合併。</li>
+        <li>功能擴充：新增 Podcast 訂閱清單（搜尋或貼上 RSS）、單集播放、加入播放清單，以及單集音訊下載（來源允許時直接下載，否則改開新分頁）。</li>
+        <li>清單分類：主分類與次分類新增「ALL」，每次開啟預設顯示全部清單，可跨分類瀏覽與連續播放；停在 ALL 時加入項目會詢問要放進哪個清單。</li>
+        <li>備份流程：匯出／匯入入口移到播放清單頁最上方，匯入時直接選擇「合併」或「取代」；匯入其他裝置的備份時，自動略過本地媒體庫項目。</li>
+        <li>Podcast：修正節目單集無法讀取的問題，改以 iTunes 單集資料為主，並加入多個 RSS 備援來源。</li>
+        <li>介面調整：載入播放按鈕旁新增「✕ 清除」按鈕。</li>
+        <li>PWA：新增 manifest 與 service worker，可安裝到主畫面，頁面本身可離線開啟。</li>
+      </ul>
+    </div>
+  </div>
+
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ===== 保留原有：YTDLnis 喚醒 ===== */
+function openYTDLnisOrWarn() {
+  const urlInput = document.getElementById('ytUrl').value;
+  if (!urlInput) { alert('請先在上方輸入框貼上 YouTube 網址！'); return; }
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  navigator.clipboard.writeText(urlInput).then(() => {
+    if (isMobile) {
+      alert('網址已自動複製到剪貼簿！\n即將嘗試開啟 YTDLnis（若未自動跳轉，請手動開啟 App 貼上）。');
+      window.location.href = `intent://${urlInput}#Intent;package=com.deniscerri.ytdlnis;end;`;
+    } else {
+      alert('【桌機提示】\n網址已複製到剪貼簿！由於桌機無法直接呼叫手機的 YTDLnis，請改至手機上開啟此網頁進行操作。');
+    }
+  }).catch(err => { alert('複製網址失敗，請手動複製。'); });
+}
+
+(()=>{
+'use strict';
+/* ---------- 小工具 ---------- */
+const $=s=>document.querySelector(s);
+function h(tag,props,...kids){
+  const e=document.createElement(tag);
+  for(const k in props||{}){
+    const v=props[k];
+    if(v===false||v==null)continue;
+    if(k==='class')e.className=v;
+    else if(k==='text')e.textContent=v;
+    else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);
+    else e.setAttribute(k,v===true?'':v);
+  }
+  for(const c of kids.flat()){if(c==null||c===false)continue;e.append(c.nodeType?c:document.createTextNode(c));}
+  return e;
+}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'';
+/* 影音連結：允許 http(s) 或同網站的相對路徑（例如 media/a.mp3） */
+const safeMedia=u=>(/^https?:\/\//i.test(u||'')||/^(?![a-z][a-z0-9+.-]*:)[^\s]+$/i.test(u||''))?u:'';
+const ymd=()=>{const d=new Date();return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');};
+const fmtMB=n=>(n/1048576).toFixed(n>=1.07e8?0:1)+' MB';
+const stripExt=n=>n.replace(/\.[^.]{1,5}$/,'');
+function move(arr,i,d){const j=i+d;if(j<0||j>=arr.length)return false;[arr[i],arr[j]]=[arr[j],arr[i]];return true;}
+let toastT;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',4200);}
+function fmtT(s){s=Math.max(0,Math.floor(s||0));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+
+function ask(title,fields,ok){
+  return new Promise(res=>{
+    const dlg=h('dialog');const form=h('form',{method:'dialog'});const inputs={};
+    form.append(h('h3',{text:title}));
+    fields.forEach(f=>{
+      const inp=h('input',{type:'text',value:f.value||'',placeholder:f.placeholder||'',autocomplete:'off'});
+      inputs[f.key]=inp;form.append(h('label',{},f.label,inp));
+    });
+    form.append(h('div',{class:'row end'},
+      h('button',{type:'button',onclick:()=>dlg.close('cancel'),text:'取消'}),
+      h('button',{type:'submit',class:'primary',value:'ok',text:ok||'確定'})));
+    dlg.append(form);document.body.append(dlg);
+    dlg.addEventListener('close',()=>{
+      const r=dlg.returnValue==='ok'?Object.fromEntries(Object.entries(inputs).map(([k,v])=>[k,v.value.trim()])):null;
+      dlg.remove();res(r);
+    });
+    dlg.showModal();const f0=Object.values(inputs)[0];if(f0)f0.focus();
+  });
+}
+function confirmBox(msg){
+  return new Promise(res=>{
+    const dlg=h('dialog');const form=h('form',{method:'dialog'});
+    form.append(h('p',{text:msg}),h('div',{class:'row end',style:'margin-top:12px'},
+      h('button',{type:'button',onclick:()=>dlg.close('cancel'),text:'取消'}),
+      h('button',{type:'submit',class:'primary',value:'ok',text:'確定'})));
+    dlg.append(form);document.body.append(dlg);
+    dlg.addEventListener('close',()=>{const r=dlg.returnValue==='ok';dlg.remove();res(r);});
+    dlg.showModal();
+  });
+}
+
+/* ---------- 資料儲存（清單：localStorage） ---------- */
+const KEY='mirror.data.v1',PKEY='mirror.pref.v1';
+const firstRun=!localStorage.getItem(KEY);
+function defaults(){return {mains:[{id:uid(),name:'未分類',subs:[{id:uid(),name:'預設清單',items:[]}]}],podcasts:[],lastExport:0};}
+function loadDB(){
+  try{
+    const d=JSON.parse(localStorage.getItem(KEY));
+    if(d&&Array.isArray(d.mains)){d.podcasts=Array.isArray(d.podcasts)?d.podcasts:[];d.lastExport=d.lastExport||0;return d;}
+  }catch(e){}
+  return defaults();
+}
+let db=loadDB();
+let prefs=Object.assign({mirror:false,loop:false,rate:1,ui:{}},(()=>{try{return JSON.parse(localStorage.getItem(PKEY))||{};}catch(e){return {};}})());
+prefs.ui=prefs.ui||{};
+const ui=prefs.ui;
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){toast('儲存失敗：瀏覽器空間不足或禁止儲存');}}
+function savePrefs(){try{localStorage.setItem(PKEY,JSON.stringify(prefs));}catch(e){}}
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
+
+/* ---------- 媒體庫（IndexedDB：存放本地影音檔） ---------- */
+let idbP=null;
+function idb(){
+  return idbP||(idbP=new Promise((res,rej)=>{
+    if(!window.indexedDB){rej(new Error('no idb'));return;}
+    const r=indexedDB.open('mirror-media',1);
+    r.onupgradeneeded=()=>r.result.createObjectStore('files',{keyPath:'key'});
+    r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+  }));
+}
+async function tx(mode,fn){
+  const d=await idb();
+  return new Promise((res,rej)=>{
+    const t=d.transaction('files',mode);const rq=fn(t.objectStore('files'));
+    t.oncomplete=()=>res(rq?rq.result:undefined);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error);
+  });
+}
+const libKey=it=>it.name+'|'+(it.size||0);
+const libPut=(file,key)=>tx('readwrite',st=>st.put({key:key||(file.name+'|'+file.size),name:file.name,size:file.size,type:file.type,added:Date.now(),blob:file}));
+const libGet=k=>tx('readonly',st=>st.get(k));
+const libDel=k=>tx('readwrite',st=>st.delete(k));
+const libList=()=>tx('readonly',st=>st.getAll());
+async function libSaveFiles(files,keys){
+  let n=0;
+  try{
+    for(let i=0;i<files.length;i++){await libPut(files[i],keys&&keys[i]);n++;}
+    toast('已存入媒體庫：'+n+' 個檔案');
+  }catch(e){toast('存入媒體庫失敗（已存 '+n+' 個）：可能是儲存空間不足或瀏覽器禁止儲存');}
+  if(!$('#tab-bk').hidden)renderLib();
+}
+const tempFiles=new Map();
+async function resolveLocal(it){
+  const k=libKey(it);
+  if(tempFiles.has(k))return tempFiles.get(k);
+  try{
+    let rec=it.size?await libGet(k):null;
+    if(!rec){const all=await libList();rec=all.find(r=>r.name===it.name);}
+    return rec?rec.blob:null;
+  }catch(e){return null;}
+}
+
+/* ---------- 播放器 ---------- */
+const video=$('#myVideo'),wrap=$('#videoWrapper');
+let cur=null,queue=null,playingKey='',ytPlayer=null,ytReady=false,ytWant=null,objUrl=null,pendingLocal=null,errStreak=0,playTok=0;
+const ytCbs=[];
+const keyOf=it=>it.type==='local'?'L:'+libKey(it):it.url;
+
+function ytId(u){
+  try{
+    const x=new URL(String(u).trim());const host=x.hostname.replace(/^www\.|^m\./,'');
+    if(host==='youtu.be'){const id=x.pathname.slice(1).split('/')[0];return /^[\w-]{6,}$/.test(id)?id:null;}
+    if(host.endsWith('youtube.com')||host==='youtube-nocookie.com'){
+      const v=x.searchParams.get('v');if(v&&/^[\w-]{6,}$/.test(v))return v;
+      const m=x.pathname.match(/\/(embed|shorts|live|v)\/([\w-]{6,})/);if(m)return m[2];
+    }
+  }catch(e){}
+  return /^[\w-]{11}$/.test(String(u).trim())?String(u).trim():null;
+}
+async function ytTitle(id){
+  try{
+    const r=await fetch('https://www.youtube.com/oembed?format=json&url='+encodeURIComponent('https://www.youtube.com/watch?v='+id));
+    if(r.ok){const j=await r.json();return j.title||'';}
+  }catch(e){}
+  return '';
+}
+function showSurface(k){
+  video.style.display=k==='video'?'block':'none';
+  $('#ytBox').style.display=k==='yt'?'block':'none';
+  $('#placeholder').style.display='none';
+}
+function stopAll(){
+  try{video.pause();}catch(e){}
+  video.removeAttribute('src');video.load();
+  if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null;}
+  if(ytPlayer&&ytReady){try{ytPlayer.stopVideo();}catch(e){}}
+  clearAB();
+}
+function ensureYT(cb){
+  if(window.YT&&YT.Player){cb();return;}
+  ytCbs.push(cb);
+  if(!document.getElementById('ytapi')){
+    const s=document.createElement('script');s.id='ytapi';s.src='https://www.youtube.com/iframe_api';
+    s.onerror=()=>toast('無法載入 YouTube 播放器，請檢查網路');
+    document.head.append(s);
+  }
+}
+window.onYouTubeIframeAPIReady=()=>{ytCbs.splice(0).forEach(f=>f());};
+function loadYT(id){
+  ytWant=id;
+  ensureYT(()=>{
+    if(!ytPlayer){
+      ytPlayer=new YT.Player('ytPlayer',{
+        width:'100%',height:'100%',playerVars:{playsinline:1,rel:0},
+        events:{
+          onReady:()=>{ytReady=true;ytPlayer.loadVideoById(ytWant);applyRate();},
+          onStateChange:e=>{
+            if(e.data===YT.PlayerState.ENDED)onEnded();
+            if(e.data===YT.PlayerState.PLAYING){errStreak=0;applyRate();}
+          },
+          onError:()=>{toast('此 YouTube 影片無法播放（可能禁止嵌入或已下架）');if(queue)skipNext();}
+        }
+      });
+    }else if(ytReady){ytPlayer.loadVideoById(id);applyRate();}
+  });
+}
+function playItem(it,auto){
+  const tok=++playTok;
+  stopAll();cur=it;playingKey=keyOf(it);
+  $('#nowTitle').textContent=it.title||'';
+  syncLoop();updateMeta();refreshLists();
+  if(it.type==='youtube'){
+    const id=ytId(it.url);if(!id){toast('網址格式有誤');return;}
+    showSurface('yt');loadYT(id);
+  }else if(it.type==='local'){
+    resolveLocal(it).then(b=>{
+      if(tok!==playTok)return;
+      if(b){showSurface('video');objUrl=URL.createObjectURL(b);video.src=objUrl;video.play().catch(()=>{});}
+      else if(auto){skipNext();}
+      else{pendingLocal=it;$('#localVideo').click();toast('這台裝置的媒體庫沒有此檔案，請選取：'+it.name);}
+    });
+  }else{
+    showSurface('video');video.src=it.url;video.play().catch(()=>{});
+  }
+}
+function playQueue(items,i){
+  if(!items.length)return;
+  queue={items:items.slice(),i};errStreak=0;
+  playItem(queue.items[i]);
+}
+function skipNext(){
+  if(!queue)return;
+  errStreak++;if(errStreak>queue.items.length){toast('清單中的項目都無法播放');queue=null;return;}
+  nextItem(true);
+}
+function nextItem(auto){
+  if(!queue){if(!auto)toast('目前不是從清單播放');return;}
+  let n=queue.i+1;
+  if(n>=queue.items.length){if(prefs.loop)n=0;else{if(auto)toast('清單播放完畢');return;}}
+  queue.i=n;playItem(queue.items[n],auto);
+}
+function prevItem(){
+  if(!queue){toast('目前不是從清單播放');return;}
+  let n=queue.i-1;if(n<0)n=prefs.loop?queue.items.length-1:0;
+  queue.i=n;playItem(queue.items[n]);
+}
+function onEnded(){if(queue)nextItem(true);else if(prefs.loop)replay();}
+function replay(){
+  if(cur&&cur.type==='youtube'&&ytReady){ytPlayer.seekTo(0,true);ytPlayer.playVideo();}
+  else{video.currentTime=0;video.play().catch(()=>{});}
+}
+function syncLoop(){video.loop=prefs.loop&&!queue;}
+video.addEventListener('ended',onEnded);
+video.addEventListener('playing',()=>{errStreak=0;});
+video.addEventListener('loadedmetadata',applyRate);
+video.addEventListener('error',()=>{
+  if(!video.getAttribute('src'))return;
+  toast('無法播放：格式不支援，或來源不允許外部網站播放');
+  if(queue)skipNext();
+});
+
+/* 速度 */
+function applyRate(){
+  video.defaultPlaybackRate=prefs.rate;video.playbackRate=prefs.rate;
+  if(ytPlayer&&ytReady){try{ytPlayer.setPlaybackRate(prefs.rate);}catch(e){}}
+  $('#speedSelect').value=String(prefs.rate);
+}
+$('#speedSelect').addEventListener('change',e=>{prefs.rate=parseFloat(e.target.value);savePrefs();applyRate();});
+
+/* 切換 */
+function setMirror(v){prefs.mirror=v;wrap.classList.toggle('mirror',v);const b=$('#mirrorBtn');b.classList.toggle('btn-active',v);b.textContent='🪞 鏡像翻轉 ('+(v?'On':'Off')+')';savePrefs();}
+function setLoop(v){prefs.loop=v;const b=$('#loopBtn');b.classList.toggle('btn-active',v);b.textContent='🔁 循環播放 ('+(v?'On':'Off')+')';syncLoop();savePrefs();}
+function fullscreen(){
+  if(document.fullscreenElement||document.webkitFullscreenElement){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return;}
+  if(wrap.requestFullscreen)wrap.requestFullscreen();
+  else if(wrap.webkitRequestFullscreen)wrap.webkitRequestFullscreen();
+  else if(video.webkitEnterFullscreen&&video.style.display!=='none')video.webkitEnterFullscreen();
+  else toast('此瀏覽器不支援全螢幕');
+}
+$('#mirrorBtn').onclick=()=>setMirror(!prefs.mirror);
+$('#loopBtn').onclick=()=>setLoop(!prefs.loop);
+$('#fsBtn').onclick=fullscreen;
+$('#nextBtn').onclick=()=>nextItem(false);
+$('#prevBtn').onclick=prevItem;
+
+/* 播放控制 */
+const isYT=()=>cur&&cur.type==='youtube'&&ytReady;
+function getTime(){return isYT()?ytPlayer.getCurrentTime():video.currentTime;}
+function seekTo(t){if(isYT())ytPlayer.seekTo(t,true);else video.currentTime=t;}
+function togglePlay(){
+  if(!cur)return;
+  if(isYT()){ytPlayer.getPlayerState()===1?ytPlayer.pauseVideo():ytPlayer.playVideo();}
+  else{video.paused?video.play().catch(()=>{}):video.pause();}
+}
+
+/* A-B 重複 */
+let abA=null,abB=null,abTimer=null;
+function abShow(){$('#abInfo').textContent=abA==null?'':('A '+fmtT(abA)+(abB!=null?' – B '+fmtT(abB):'（請設定 B）'));}
+function clearAB(){abA=abB=null;clearInterval(abTimer);abTimer=null;abShow();}
+function startAB(){if(abTimer)return;abTimer=setInterval(()=>{if(abA!=null&&abB!=null&&getTime()>=abB)seekTo(abA);},200);}
+$('#abA').onclick=()=>{if(!cur){toast('請先載入影音');return;}abA=getTime();if(abB!=null&&abB<=abA)abB=null;abShow();startAB();};
+$('#abB').onclick=()=>{if(!cur)return;if(abA==null){toast('請先設定 A 起點');return;}const t=getTime();if(t<=abA){toast('B 必須在 A 之後');return;}abB=t;abShow();startAB();};
+$('#abC').onclick=clearAB;
+
+/* 手機鎖定畫面控制 */
+function updateMeta(){
+  document.title=cur&&cur.title?cur.title+' - 影音播放器':'影音播放器';
+  if(!('mediaSession' in navigator))return;
+  try{
+    navigator.mediaSession.metadata=new MediaMetadata({title:(cur&&cur.title)||'影音播放器'});
+    navigator.mediaSession.setActionHandler('play',()=>video.play().catch(()=>{}));
+    navigator.mediaSession.setActionHandler('pause',()=>video.pause());
+    navigator.mediaSession.setActionHandler('previoustrack',queue?prevItem:null);
+    navigator.mediaSession.setActionHandler('nexttrack',queue?()=>nextItem(false):null);
+  }catch(e){}
+}
+
+/* 快捷鍵 */
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if(t.closest&&t.closest('input,textarea,select,dialog'))return;
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  const k=e.key.toLowerCase();
+  if(k===' '&&t.tagName!=='BUTTON'){e.preventDefault();togglePlay();}
+  else if(e.key==='ArrowLeft'&&cur)seekTo(Math.max(0,getTime()-5));
+  else if(e.key==='ArrowRight'&&cur)seekTo(getTime()+5);
+  else if(k==='m')setMirror(!prefs.mirror);
+  else if(k==='l')setLoop(!prefs.loop);
+  else if(k==='f')fullscreen();
+  else if(k==='n')nextItem(false);
+  else if(k==='p')prevItem();
+});
+
+/* 載入來源 */
+$('#localVideo').addEventListener('change',e=>{
+  const files=[...e.target.files];e.target.value='';if(!files.length)return;
+  const saveIt=$('#saveLib').checked;
+  if(pendingLocal){
+    const it=pendingLocal;pendingLocal=null;const k=libKey(it);
+    tempFiles.set(k,files[0]);playItem(it);
+    if(saveIt)libSaveFiles([files[0]],[k]);
+    return;
+  }
+  const items=files.map(f=>{
+    const it={id:uid(),type:'local',title:f.name,name:f.name,size:f.size};
+    tempFiles.set(libKey(it),f);return it;
+  });
+  queue=null;
+  if(items.length>1)playQueue(items,0);else playItem(items[0]);
+  if(saveIt)libSaveFiles(files);
+});
+async function loadFromInput(){
+  const v=$('#ytUrl').value.trim();
+  if(!v){toast('請先貼上網址');return;}
+  queue=null;
+  const id=ytId(v);
+  if(id){
+    const it={id:uid(),type:'youtube',title:'YouTube 影片',url:'https://www.youtube.com/watch?v='+id};
+    playItem(it);
+    ytTitle(id).then(t=>{if(t&&cur===it){it.title=t;$('#nowTitle').textContent=t;updateMeta();}});
+  }else if(/^https?:\/\//i.test(v)){
+    let name='影音連結';try{name=decodeURIComponent(new URL(v).pathname.split('/').pop())||name;}catch(e){}
+    playItem({id:uid(),type:'url',title:name,url:v});
+  }else toast('請輸入正確的 YouTube 影片網址或 http(s) 影音連結');
+}
+$('#loadUrl').onclick=loadFromInput;
+$('#ytUrl').addEventListener('keydown',e=>{if(e.key==='Enter')loadFromInput();});
+
+/* ---------- 播放清單 UI ---------- */
+const ALL='__all';
+const countOf=m=>m.subs.reduce((a,s)=>a+s.items.length,0);
+function entriesOf(mainId,subId){
+  const out=[];
+  db.mains.forEach(m=>{
+    if(mainId!==ALL&&m.id!==mainId)return;
+    m.subs.forEach(s=>{
+      if(subId!==ALL&&s.id!==subId)return;
+      s.items.forEach(it=>out.push({it,main:m,sub:s}));
+    });
+  });
+  return out;
+}
+function curSub(){
+  if(ui.main===ALL||ui.sub===ALL)return null;
+  const m=db.mains.find(x=>x.id===ui.main);
+  return m?(m.subs.find(s=>s.id===ui.sub)||null):null;
+}
+/* 目前停在 ALL 時，加入項目前詢問要放哪個清單 */
+function pickSub(){
+  const s=curSub();if(s)return Promise.resolve(s);
+  const all=db.mains.flatMap(m=>m.subs.map(sb=>({m,sb})));
+  if(!all.length){toast('請先建立主分類與次分類');return Promise.resolve(null);}
+  if(all.length===1)return Promise.resolve(all[0].sb);
+  return new Promise(res=>{
+    const dlg=h('dialog');const form=h('form',{method:'dialog'});
+    const sel=h('select',{style:'width:100%'},all.map((x,i)=>h('option',{value:i,text:x.m.name+' / '+x.sb.name})));
+    form.append(h('h3',{text:'加入哪個清單？'}),sel,h('div',{class:'row end',style:'margin-top:12px'},
+      h('button',{type:'button',onclick:()=>dlg.close('cancel'),text:'取消'}),
+      h('button',{type:'submit',class:'primary',value:'ok',text:'加入'})));
+    dlg.append(form);document.body.append(dlg);
+    dlg.addEventListener('close',()=>{const ok=dlg.returnValue==='ok';const v=Number(sel.value);dlg.remove();res(ok?all[v].sb:null);});
+    dlg.showModal();
+  });
+}
+function choiceBox(msg,opts){
+  return new Promise(res=>{
+    const dlg=h('dialog');const form=h('form',{method:'dialog'});
+    form.append(h('p',{text:msg}),h('div',{class:'row end',style:'margin-top:12px'},
+      h('button',{type:'button',onclick:()=>dlg.close('cancel'),text:'取消'}),
+      opts.map(o=>h('button',{type:'submit',class:o.primary?'primary':'',value:o.value,text:o.label}))));
+    dlg.append(form);document.body.append(dlg);
+    dlg.addEventListener('close',()=>{const v=dlg.returnValue;dlg.remove();res(opts.some(o=>o.value===v)?v:null);});
+    dlg.showModal();
+  });
+}
+function ib(icon,tip,fn,cls){return h('button',{class:'ib '+(cls||''),title:tip,'aria-label':tip,onclick:fn,text:icon});}
+function catBlock(label,list,sel,lab,onSelect,ops,allInfo){
+  const chips=h('div',{class:'chips'});
+  if(allInfo)chips.append(h('button',{class:'chip'+(allInfo.on?' on':''),onclick:allInfo.pick,text:allInfo.label}));
+  list.forEach(c=>chips.append(h('button',{class:'chip'+(sel&&c.id===sel.id?' on':''),onclick:()=>onSelect(c.id),text:lab(c)})));
+  const bar=h('div',{class:'ops'},
+    ops.add&&ib('＋','新增',ops.add),
+    sel&&ops.extra,
+    sel&&ops.rename&&ib('✎','改名',ops.rename),
+    sel&&ib('↑','前移',ops.up),
+    sel&&ib('↓','後移',ops.down),
+    sel&&ib('🗑','刪除',ops.del,'danger'));
+  return h('div',{class:'block'},h('div',{class:'bhead'},h('strong',{text:label}),bar),chips);
+}
+const badge=it=>it.type==='youtube'?'YT':it.type==='local'?'本地':'連結';
+function ioBlock(){
+  const stale=!db.lastExport?db.mains.some(m=>m.subs.some(s=>s.items.length)):(Date.now()-db.lastExport>30*864e5);
+  return h('div',{class:'block'},
+    h('div',{class:'bhead'},h('strong',{text:'清單備份'}),
+      h('div',{class:'ops'},
+        h('button',{onclick:exportData,text:'📤 匯出清單'}),
+        h('button',{onclick:()=>$('#importFile').click(),text:'📥 匯入清單'}))),
+    h('div',{class:'hint'+(stale?' warn':''),text:(db.lastExport?'上次匯出：'+new Date(db.lastExport).toLocaleString('zh-TW'):'尚未匯出過備份')+'。匯入到其他裝置時，本地檔案（媒體庫）項目會自動略過。'}));
+}
+function renderPL(){
+  const root=$('#plRoot');root.replaceChildren();
+  if(!ui.main)ui.main=ALL;
+  let main=ui.main===ALL?null:db.mains.find(m=>m.id===ui.main)||null;
+  if(ui.main!==ALL&&!main){ui.main=ALL;}
+  if(ui.main===ALL)ui.sub=ALL;
+  let sub=null;
+  if(main){
+    if(!ui.sub)ui.sub=ALL;
+    if(ui.sub!==ALL){sub=main.subs.find(s=>s.id===ui.sub)||null;if(!sub)ui.sub=ALL;}
+  }
+  savePrefs();
+
+  root.append(ioBlock());
+
+  root.append(catBlock('主分類',db.mains,main,c=>c.name+' ('+countOf(c)+')',id=>{ui.main=id;ui.sub=ALL;renderPL();},{
+    add:async()=>{const r=await ask('新增主分類',[{key:'n',label:'名稱'}]);if(r&&r.n){const m={id:uid(),name:r.n,subs:[{id:uid(),name:'預設清單',items:[]}]};db.mains.push(m);ui.main=m.id;ui.sub=ALL;save();renderPL();}},
+    rename:async()=>{const r=await ask('主分類改名',[{key:'n',label:'名稱',value:main.name}]);if(r&&r.n){main.name=r.n;save();renderPL();}},
+    up:()=>{if(move(db.mains,db.mains.indexOf(main),-1)){save();renderPL();}},
+    down:()=>{if(move(db.mains,db.mains.indexOf(main),1)){save();renderPL();}},
+    del:async()=>{if(await confirmBox('刪除主分類「'+main.name+'」及其下所有次分類與 '+countOf(main)+' 個項目？此動作無法復原（媒體庫內的檔案不受影響）。')){db.mains.splice(db.mains.indexOf(main),1);ui.main=ui.sub=ALL;save();renderPL();}}
+  },{on:ui.main===ALL,label:'ALL ('+entriesOf(ALL,ALL).length+')',pick:()=>{ui.main=ALL;ui.sub=ALL;renderPL();}}));
+
+  if(main){
+    root.append(catBlock('次分類（'+main.name+'）',main.subs,sub,c=>c.name+' ('+c.items.length+')',id=>{ui.sub=id;renderPL();},{
+      add:async()=>{const r=await ask('新增次分類',[{key:'n',label:'名稱'}]);if(r&&r.n){const s={id:uid(),name:r.n,items:[]};main.subs.push(s);ui.sub=s.id;save();renderPL();}},
+      rename:async()=>{const r=await ask('次分類改名',[{key:'n',label:'名稱',value:sub.name}]);if(r&&r.n){sub.name=r.n;save();renderPL();}},
+      up:()=>{if(move(main.subs,main.subs.indexOf(sub),-1)){save();renderPL();}},
+      down:()=>{if(move(main.subs,main.subs.indexOf(sub),1)){save();renderPL();}},
+      del:async()=>{if(await confirmBox('刪除次分類「'+sub.name+'」及其 '+sub.items.length+' 個項目？此動作無法復原。')){main.subs.splice(main.subs.indexOf(sub),1);ui.sub=ALL;save();renderPL();}}
+    },{on:ui.sub===ALL,label:'ALL ('+countOf(main)+')',pick:()=>{ui.sub=ALL;renderPL();}}));
+  }
+
+  const entries=entriesOf(ui.main,ui.sub);
+  const viewName=ui.main===ALL?'全部':(sub?main.name+' / '+sub.name:main.name+'（全部次分類）');
+  const blk=h('div',{class:'block'},h('div',{class:'bhead'},
+    h('strong',{text:viewName+'（'+entries.length+'）'}),
+    h('div',{class:'ops'},
+      h('button',{class:'primary',onclick:()=>entries.length?playQueue(entries.map(e=>e.it),0):toast('清單是空的'),text:'▶ 播放全部'}),
+      h('button',{onclick:addCurrent,text:'＋ 目前播放'}),
+      h('button',{onclick:()=>$('#plFiles').click(),text:'＋ 匯入檔案'}),
+      h('button',{onclick:addManual,text:'＋ 網址'}))));
+  if(!entries.length)blk.append(h('div',{class:'hint',text:'這裡還沒有項目。「＋ 匯入檔案」可一次選多個本地影音，會存入媒體庫並加入清單；「＋ 網址」可貼 YouTube 或影音連結。'}));
+  const playList=entries.map(e=>e.it);
+  entries.forEach((e,idx)=>{
+    const it=e.it,owner=e.sub;
+    const sel=h('select',{style:'max-width:150px;padding:5px',onchange:ev=>{
+      const v=ev.target.value;if(!v)return;const [mi,si]=v.split('|').map(Number);
+      const to=db.mains[mi]&&db.mains[mi].subs[si];if(!to)return;
+      owner.items.splice(owner.items.indexOf(it),1);to.items.push(it);save();toast('已移至「'+db.mains[mi].name+' / '+to.name+'」');renderPL();
+    }},h('option',{value:'',text:'移至…'}),
+      db.mains.flatMap((m,mi)=>m.subs.map((s,si)=>s===owner?null:h('option',{value:mi+'|'+si,text:m.name+' / '+s.name}))));
+    blk.append(h('div',{class:'item'+(keyOf(it)===playingKey?' playing':'')},
+      h('button',{class:'ititle',onclick:()=>playQueue(playList,idx)},h('span',{class:'badge',text:badge(it)}),h('span',{class:'t',text:it.title})),
+      !sub&&h('div',{class:'meta',text:e.main.name+' / '+e.sub.name}),
+      h('div',{class:'ops'},
+        sub&&ib('↑','上移',()=>{if(move(owner.items,owner.items.indexOf(it),-1)){save();renderPL();}}),
+        sub&&ib('↓','下移',()=>{if(move(owner.items,owner.items.indexOf(it),1)){save();renderPL();}}),
+        ib('✎','改標題／網址',async()=>{
+          const f=[{key:'t',label:'標題',value:it.title}];if(it.type!=='local')f.push({key:'u',label:'網址',value:it.url});
+          const r=await ask('編輯項目',f);if(!r)return;
+          if(r.t)it.title=r.t;
+          if(r.u!==undefined&&safeMedia(r.u)){const id=ytId(r.u);it.type=id?'youtube':'url';it.url=id?'https://www.youtube.com/watch?v='+id:r.u;}
+          save();renderPL();}),
+        sel,
+        ib('🗑','刪除',()=>{owner.items.splice(owner.items.indexOf(it),1);save();renderPL();},'danger'))));
+  });
+  root.append(blk);
+  root.append(h('input',{type:'file',id:'plFiles',multiple:true,hidden:true,accept:'video/*,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,.mp4,.webm,.mkv',onchange:async e=>{
+    const files=[...e.target.files];e.target.value='';if(!files.length)return;
+    const s=await pickSub();if(!s)return;
+    files.forEach(f=>{
+      const it={id:uid(),type:'local',title:stripExt(f.name),name:f.name,size:f.size};
+      tempFiles.set(libKey(it),f);
+      if(!s.items.some(x=>keyOf(x)===keyOf(it)))s.items.push(it);
+    });
+    save();renderPL();toast('已加入「'+s.name+'」，正在存入媒體庫…');
+    await libSaveFiles(files);
+  }}));
+}
+async function addCurrent(){
+  if(!cur){toast('目前沒有載入的影音');return;}
+  const sub=await pickSub();if(!sub)return;
+  let it;
+  if(cur.type==='local'){
+    const k=libKey(cur);
+    const have=await libGet(k).catch(()=>null);
+    if(!have){
+      const f=tempFiles.get(k);
+      if(!f){toast('找不到此檔案，請重新選取後再加入');return;}
+      try{await libPut(f,k);}catch(e){toast('存入媒體庫失敗：可能是儲存空間不足');return;}
+    }
+    it={id:uid(),type:'local',title:cur.title,name:cur.name,size:cur.size};
+  }else it={id:uid(),type:cur.type,title:cur.title||'未命名',url:cur.url};
+  if(sub.items.some(x=>keyOf(x)===keyOf(it))){toast('「'+sub.name+'」已有相同項目');return;}
+  sub.items.push(it);save();renderPL();toast('已加入「'+sub.name+'」');
+}
+async function addManual(){
+  const r=await ask('以網址新增項目',[{key:'u',label:'YouTube 或影音/音訊連結（也可填同資料夾的相對路徑）',placeholder:'https://'},{key:'t',label:'標題（可留空）'}]);
+  if(!r||!r.u)return;
+  const id=ytId(r.u);
+  if(!id&&!safeMedia(r.u)){toast('網址格式不正確');return;}
+  const sub=await pickSub();if(!sub)return;
+  let title=r.t;
+  if(id&&!title)title=await ytTitle(id);
+  if(!title){try{title=decodeURIComponent(new URL(r.u,location.href).pathname.split('/').pop());}catch(e){}}
+  sub.items.push({id:uid(),type:id?'youtube':'url',title:title||'未命名',url:id?'https://www.youtube.com/watch?v='+id:r.u});
+  save();renderPL();toast('已加入「'+sub.name+'」');
+}
+
+/* ---------- Podcast ---------- */
+async function fetchTO(u,ms){
+  const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||12000);
+  try{return await fetch(u,{signal:c.signal});}finally{clearTimeout(t);}
+}
+const httpsUp=u=>String(u||'').replace(/^http:/i,'https:');
+/* 方法 1：iTunes 單集資料（允許跨網站讀取，最穩定；需要節目的 iTunes ID） */
+async function resolveCid(p){
+  if(p.cid)return p.cid;
+  try{
+    const r=await fetchTO('https://itunes.apple.com/search?media=podcast&limit=10&term='+encodeURIComponent(p.name));
+    const j=await r.json();
+    const norm=u=>String(u||'').replace(/^https?:\/\//i,'').replace(/\/+$/,'').toLowerCase();
+    const hit=(j.results||[]).find(x=>x.feedUrl&&norm(x.feedUrl)===norm(p.feed));
+    if(hit){p.cid=String(hit.collectionId);return p.cid;}
+  }catch(e){}
+  return '';
+}
+async function episodesFromItunes(p){
+  const cid=await resolveCid(p);if(!cid)throw new Error('no cid');
+  const r=await fetchTO('https://itunes.apple.com/lookup?id='+cid+'&media=podcast&entity=podcastEpisode&limit=60');
+  const j=await r.json();
+  const eps=(j.results||[]).filter(x=>x.episodeUrl).map(x=>({
+    title:x.trackName||'未命名單集',url:httpsUp(x.episodeUrl),date:x.releaseDate||'',
+    dur:x.trackTimeMillis?String(Math.round(x.trackTimeMillis/1000)):''}));
+  if(!eps.length)throw new Error('empty');
+  const first=(j.results||[]).find(x=>x.artworkUrl100);
+  return {title:'',image:first?safeUrl(first.artworkUrl100):'',eps};
+}
+/* 方法 2：直接讀 RSS，失敗時依序嘗試多個轉接服務 */
+async function fetchFeedText(url){
+  const tries=[url,
+    'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
+    'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url),
+    'https://corsproxy.io/?'+encodeURIComponent(url)];
+  for(const u of tries){
+    try{const r=await fetchTO(u);if(r.ok){const t=await r.text();if(/<rss|<feed|<channel/i.test(t))return t;}}catch(e){}
+  }
+  throw new Error('feed');
+}
+async function episodesFromRss(feed){
+  const doc=new DOMParser().parseFromString(await fetchFeedText(feed),'text/xml');
+  if(doc.querySelector('parsererror'))throw new Error('parse');
+  const ch=doc.querySelector('channel');if(!ch)throw new Error('parse');
+  const tt=ch.querySelector(':scope > title');
+  const img=ch.getElementsByTagName('itunes:image')[0];
+  const eps=[];
+  doc.querySelectorAll('item').forEach(it=>{
+    if(eps.length>=60)return;
+    const en=it.querySelector('enclosure');const url=en&&en.getAttribute('url');if(!url)return;
+    const d=it.querySelector('pubDate');const du=it.getElementsByTagName('itunes:duration')[0];
+    const ti=it.querySelector('title');
+    eps.push({title:(ti&&ti.textContent.trim())||'未命名單集',url:httpsUp(url),date:d?d.textContent.trim():'',dur:du?du.textContent.trim():''});
+  });
+  if(!eps.length)throw new Error('empty');
+  return {title:tt?tt.textContent.trim():'',image:img?safeUrl(img.getAttribute('href')):'',eps};
+}
+/* 方法 3：rss2json（公開轉換服務，最多約 10 集） */
+async function episodesFromJson(feed){
+  const r=await fetchTO('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(feed));
+  const j=await r.json();if(j.status!=='ok')throw new Error('rss2json');
+  const eps=(j.items||[]).map(it=>({title:it.title||'未命名單集',url:httpsUp(it.enclosure&&it.enclosure.link),date:it.pubDate||'',dur:''})).filter(e=>e.url);
+  if(!eps.length)throw new Error('empty');
+  return {title:(j.feed&&j.feed.title)||'',image:safeUrl(j.feed&&j.feed.image),eps};
+}
+async function loadEpisodes(p){
+  for(const fn of [()=>episodesFromItunes(p),()=>episodesFromRss(p.feed),()=>episodesFromJson(p.feed)]){
+    try{return await fn();}catch(e){}
+  }
+  throw new Error('all failed');
+}
+async function refreshPod(p,quiet){
+  toast('讀取單集中…');
+  try{
+    const info=await loadEpisodes(p);
+    p.eps=info.eps;p.at=Date.now();if(!p.image)p.image=info.image;if((!p.name||p.name==='Podcast')&&info.title)p.name=info.title;
+    save();renderPod();if(!quiet)toast('已更新 '+info.eps.length+' 集');else $('#toast').style.display='none';
+  }catch(e){toast('讀取單集失敗。建議用上方「搜尋」重新訂閱這個節目（透過搜尋訂閱最穩定），或稍後再按 ⟳。');}
+}
+function addPodcast(p){
+  const ex=db.podcasts.find(x=>x.feed===p.feed);
+  if(ex){
+    if(p.cid&&!ex.cid){ex.cid=String(p.cid);save();}
+    ui.pod=ex.id;renderPod();toast('已訂閱過這個節目');
+    if(!ex.eps.length)refreshPod(ex,true);
+    return null;
+  }
+  const np={id:uid(),name:p.name||'Podcast',feed:p.feed,image:safeUrl(p.image),cid:p.cid?String(p.cid):'',eps:[],at:0};
+  db.podcasts.push(np);ui.pod=np.id;save();renderPod();refreshPod(np,true);return np;
+}
+const fmtDur=d=>!d?'':/^\d+$/.test(d)?fmtT(Number(d)):d;
+const fmtDate=s=>{const t=new Date(s);return isNaN(t)?'':t.toLocaleDateString('zh-TW');};
+function renderPod(){
+  const root=$('#podRoot');root.replaceChildren();
+  const q=h('input',{type:'search',placeholder:'搜尋 Podcast 名稱'});
+  const res=h('div');
+  const doSearch=async()=>{
+    const term=q.value.trim();if(!term)return;
+    res.replaceChildren(h('div',{class:'hint',text:'搜尋中…'}));
+    try{
+      const r=await fetchTO('https://itunes.apple.com/search?media=podcast&limit=15&country=TW&term='+encodeURIComponent(term));
+      const j=await r.json();const list=(j.results||[]).filter(x=>x.feedUrl);
+      res.replaceChildren();
+      if(!list.length)res.append(h('div',{class:'hint',text:'找不到結果，可改貼上 RSS 網址。'}));
+      list.forEach(x=>res.append(h('div',{class:'sr'},
+        h('img',{src:safeUrl(x.artworkUrl100),alt:'',loading:'lazy'}),
+        h('div',{class:'grow'},h('div',{text:x.collectionName}),h('div',{class:'meta',text:x.artistName})),
+        h('button',{onclick:()=>addPodcast({name:x.collectionName,feed:x.feedUrl,image:x.artworkUrl100,cid:x.collectionId}),text:'＋ 訂閱'}))));
+    }catch(e){res.replaceChildren(h('div',{class:'hint warn',text:'搜尋失敗，請改貼上 RSS 網址。'}));}
+  };
+  q.addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
+  const rss=h('input',{type:'url',placeholder:'貼上 Podcast RSS 網址'});
+  const addRss=()=>{
+    const f=rss.value.trim();if(!safeUrl(f)){toast('請輸入有效的 RSS 網址');return;}
+    if(addPodcast({name:'',feed:f}))rss.value='';
+  };
+  root.append(h('div',{class:'block'},
+    h('div',{class:'bhead'},h('strong',{text:'新增節目'})),
+    h('div',{class:'row'},h('div',{class:'grow'},q),h('button',{onclick:doSearch,text:'搜尋'})),
+    res,
+    h('div',{class:'row',style:'margin-top:8px'},h('div',{class:'grow'},rss),h('button',{onclick:addRss,text:'＋ 以 RSS 訂閱'}))));
+
+  const p=db.podcasts.find(x=>x.id===ui.pod)||db.podcasts[0]||null;
+  ui.pod=p?p.id:null;savePrefs();
+  root.append(catBlock('我的 Podcast',db.podcasts,p,c=>c.name,id=>{ui.pod=id;renderPod();const np=db.podcasts.find(x=>x.id===id);if(np&&!np.eps.length)refreshPod(np,true);},{
+    extra:p&&ib('⟳','重新整理',()=>refreshPod(p)),
+    rename:async()=>{const r=await ask('節目改名',[{key:'n',label:'名稱',value:p.name}]);if(r&&r.n){p.name=r.n;save();renderPod();}},
+    up:()=>{if(move(db.podcasts,db.podcasts.indexOf(p),-1)){save();renderPod();}},
+    down:()=>{if(move(db.podcasts,db.podcasts.indexOf(p),1)){save();renderPod();}},
+    del:async()=>{if(await confirmBox('取消訂閱「'+p.name+'」？')){db.podcasts.splice(db.podcasts.indexOf(p),1);ui.pod=null;save();renderPod();}}
+  }));
+  if(!p){root.append(h('div',{class:'hint',text:'尚未訂閱任何節目。'}));return;}
+
+  const blk=h('div',{class:'block'},h('div',{class:'bhead'},
+    h('div',{class:'row'},p.image&&h('img',{class:'cover',src:p.image,alt:''}),h('strong',{text:p.name})),
+    h('span',{class:'meta',text:p.at?'更新於 '+new Date(p.at).toLocaleString('zh-TW'):''})));
+  if(!p.eps.length)blk.append(h('div',{class:'hint',text:'尚無單集資料，請按上方 ⟳ 重新整理。'}));
+  p.eps.forEach(ep=>{
+    const meta=[fmtDate(ep.date),fmtDur(ep.dur)].filter(Boolean).join('・');
+    const play=()=>{queue=null;playItem({id:uid(),type:'url',title:ep.title,url:ep.url});};
+    blk.append(h('div',{class:'item'+(ep.url===playingKey?' playing':'')},
+      h('button',{class:'ititle',onclick:play},h('span',{class:'t',text:ep.title})),
+      h('div',{class:'row'},h('span',{class:'meta',text:meta}),
+        h('div',{class:'ops'},
+          ib('▶','播放',play),
+          ib('＋','加入播放清單',async()=>{
+            const sub=await pickSub();if(!sub)return;
+            if(sub.items.some(x=>x.url===ep.url)){toast('「'+sub.name+'」已有此單集');return;}
+            sub.items.push({id:uid(),type:'url',title:ep.title,url:ep.url});save();toast('已加入「'+sub.name+'」');}),
+          ib('⬇','下載音訊',()=>downloadEp(ep))))));
+  });
+  root.append(blk);
+}
+function saveBlob(blob,name){
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+async function downloadEp(ep){
+  toast('開始下載…檔案較大時需要一些時間，請稍候');
+  try{
+    const r=await fetch(ep.url);if(!r.ok)throw new Error('http');
+    const b=await r.blob();
+    const m=ep.url.match(/\.(mp3|m4a|aac|ogg|opus|wav)(\?|$)/i);
+    const ext=m?m[1].toLowerCase():(/mp4|m4a/.test(b.type)?'m4a':'mp3');
+    saveBlob(b,(ep.title.replace(/[\\/:*?"<>|]+/g,'_').slice(0,80)||'podcast')+'.'+ext);
+    toast('下載完成');
+  }catch(e){
+    window.open(ep.url,'_blank','noopener');
+    toast('此來源不允許網頁直接下載，已改在新分頁開啟，可由播放器選單另存');
+  }
+}
+
+/* ---------- 匯出／匯入／預設清單 ---------- */
+let deviceId=localStorage.getItem('mirror.device');
+if(!deviceId){deviceId=uid()+uid();try{localStorage.setItem('mirror.device',deviceId);}catch(e){}}
+
+function exportData(){
+  const data={app:'mirror-player',schema:2,deviceId,exportedAt:new Date().toISOString(),mains:db.mains,
+    podcasts:db.podcasts.map(p=>({name:p.name,feed:p.feed,image:p.image,cid:p.cid||''}))};
+  saveBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'mirror-backup-'+ymd()+'.json');
+  db.lastExport=Date.now();save();renderPL();toast('已匯出備份檔');
+}
+function cleanData(d){
+  if(!d||!Array.isArray(d.mains))throw new Error('格式不符');
+  const str=(v,n)=>typeof v==='string'?v.slice(0,n||300):'';
+  const mains=d.mains.map(m=>({id:uid(),name:str(m&&m.name)||'未命名',
+    subs:(Array.isArray(m&&m.subs)?m.subs:[]).map(s=>({id:uid(),name:str(s&&s.name)||'未命名',
+      items:(Array.isArray(s&&s.items)?s.items:[]).map(it=>{
+        const type=['youtube','url','local'].includes(it&&it.type)?it.type:'url';
+        return {id:uid(),type,title:str(it&&it.title)||'未命名',url:str(it&&it.url,2000),name:str(it&&it.name),size:Number(it&&it.size)||0};
+      }).filter(it=>it.type==='local'?it.name:(it.type==='youtube'?!!ytId(it.url):safeMedia(it.url)))
+    }))}));
+  const podcasts=(Array.isArray(d.podcasts)?d.podcasts:[]).map(p=>({id:uid(),name:str(p&&p.name)||'Podcast',feed:str(p&&p.feed,2000),image:safeUrl(str(p&&p.image,2000)),cid:String((p&&p.cid)||'').replace(/\D/g,''),eps:[],at:0}))
+    .filter(p=>safeUrl(p.feed));
+  return {mains,podcasts};
+}
+/* 不是同一台裝置匯出的檔案：媒體庫（本地檔案）項目不適用，直接略過 */
+function prepImport(raw){
+  const imp=cleanData(raw);
+  const same=!!(raw&&raw.deviceId&&raw.deviceId===deviceId);
+  let skipped=0;
+  if(!same)imp.mains.forEach(m=>m.subs.forEach(s=>{const n=s.items.length;s.items=s.items.filter(it=>it.type!=='local');skipped+=n-s.items.length;}));
+  return {imp,skipped};
+}
+function mergeImport(imp){
+  imp.mains.forEach(m=>{
+    const em=db.mains.find(x=>x.name===m.name);
+    if(!em){db.mains.push(m);return;}
+    m.subs.forEach(s=>{
+      const es=em.subs.find(x=>x.name===s.name);
+      if(!es){em.subs.push(s);return;}
+      s.items.forEach(it=>{if(!es.items.some(x=>keyOf(x)===keyOf(it)&&x.title===it.title))es.items.push(it);});
+    });
+  });
+  imp.podcasts.forEach(p=>{
+    const ex=db.podcasts.find(x=>x.feed===p.feed);
+    if(!ex)db.podcasts.push(p);else if(p.cid&&!ex.cid)ex.cid=p.cid;
+  });
+}
+const countItems=imp=>imp.mains.reduce((a,m)=>a+m.subs.reduce((b,s)=>b+s.items.length,0),0);
+async function importFromFile(f){
+  let raw;try{raw=JSON.parse(await f.text());}catch(e){toast('匯入失敗：不是有效的備份檔');return;}
+  let r;try{r=prepImport(raw);}catch(e){toast('匯入失敗：檔案格式不符');return;}
+  const {imp,skipped}=r;
+  const msg='備份檔含 '+countItems(imp)+' 個項目、'+imp.podcasts.length+' 個 Podcast'+
+    (skipped?'。因為這份備份來自其他裝置，已自動略過 '+skipped+' 個本地檔案（媒體庫）項目':'')+
+    '。要怎麼匯入？「取代」會覆蓋目前所有清單與訂閱。';
+  const choice=await choiceBox(msg,[{label:'取代',value:'replace'},{label:'合併（建議）',value:'merge',primary:true}]);
+  if(!choice)return;
+  if(choice==='replace'){db.mains=imp.mains.length?imp.mains:defaults().mains;db.podcasts=imp.podcasts;}
+  else mergeImport(imp);
+  ui.main=ui.sub=ALL;ui.pod=null;save();renderPL();renderPod();
+  toast('匯入完成：'+countItems(imp)+' 個項目'+(skipped?'（略過 '+skipped+' 個本地檔案項目）':''));
+}
+$('#importFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)importFromFile(f);});
+async function loadRemote(manual){
+  try{
+    const r=await fetch('mirror-data.json',{cache:'no-store'});
+    if(!r.ok)throw new Error('404');
+    const {imp,skipped}=prepImport(await r.json());
+    if(firstRun&&!manual){db.mains=imp.mains.length?imp.mains:db.mains;db.podcasts=imp.podcasts;}
+    else mergeImport(imp);
+    ui.main=ui.sub=ALL;ui.pod=null;save();renderPL();renderPod();
+    toast('已載入網站預設清單（'+countItems(imp)+' 個項目'+(skipped?'，略過 '+skipped+' 個本地檔案項目':'')+'）');
+  }catch(e){
+    if(manual)toast('找不到或無法讀取 mirror-data.json（請放在與 mirror.html 同一個資料夾）');
+    else save();
+  }
+}
+$('#remoteBtn').onclick=()=>loadRemote(true);
+
+/* ---------- 媒體庫管理 ---------- */
+async function renderLib(){
+  const box=$('#libBox');
+  try{
+    const list=(await libList()).sort((a,b)=>b.added-a.added);
+    let est='';
+    try{const e=await navigator.storage.estimate();est='；瀏覽器已用 '+fmtMB(e.usage)+' / 可用約 '+fmtMB(e.quota);}catch(_){}
+    const total=list.reduce((a,r)=>a+r.size,0);
+    $('#libInfo').textContent='共 '+list.length+' 個檔案，約 '+fmtMB(total)+est;
+    box.replaceChildren();
+    if(!list.length)box.append(h('div',{class:'hint',text:'媒體庫是空的。選擇本地檔案（勾選「存入媒體庫」）或在播放清單按「＋ 匯入檔案」即可加入。'}));
+    list.forEach(r=>box.append(h('div',{class:'item'},
+      h('div',{class:'ititle',style:'cursor:default'},h('span',{class:'t',text:r.name})),
+      h('div',{class:'row'},h('span',{class:'meta',text:fmtMB(r.size)}),
+        h('div',{class:'ops'},
+          ib('▶','播放',()=>{queue=null;playItem({id:uid(),type:'local',title:stripExt(r.name),name:r.name,size:r.size});}),
+          ib('🗑','從媒體庫刪除',async()=>{if(await confirmBox('從媒體庫刪除「'+r.name+'」？清單中的項目會保留，但下次播放需重新選檔。')){await libDel(r.key);renderLib();}},'danger'))))));
+  }catch(e){
+    $('#libInfo').textContent='';
+    box.replaceChildren(h('div',{class:'hint warn',text:'此瀏覽器無法使用媒體庫（可能是無痕模式或禁止儲存）。仍可用「選擇本地檔案」暫時播放。'}));
+  }
+}
+
+/* ---------- 分頁與初始化 ---------- */
+function refreshLists(){if(!$('#tab-pl').hidden)renderPL();if(!$('#tab-pod').hidden)renderPod();}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  ['pl','pod','bk'].forEach(t=>$('#tab-'+t).hidden=(t!==b.dataset.tab));
+  if(b.dataset.tab==='pl')renderPL();
+  if(b.dataset.tab==='pod'){renderPod();const p=db.podcasts.find(x=>x.id===ui.pod)||db.podcasts[0];if(p&&!p.eps.length)refreshPod(p,true);}
+  if(b.dataset.tab==='bk')renderLib();
+});
+$('#clearUrl').onclick=()=>{const i=$('#ytUrl');i.value='';i.focus();};
+
+/* PWA：安裝到主畫面 */
+let deferredInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;$('#installBtn').hidden=false;});
+$('#installBtn').onclick=async()=>{
+  if(!deferredInstall)return;
+  deferredInstall.prompt();
+  try{await deferredInstall.userChoice;}catch(e){}
+  deferredInstall=null;$('#installBtn').hidden=true;
+};
+window.addEventListener('appinstalled',()=>{$('#installBtn').hidden=true;toast('已安裝到主畫面');});
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+/* 每次開啟預設顯示 ALL（全部），避免停在空的分類 */
+ui.main=ALL;ui.sub=ALL;
+setMirror(!!prefs.mirror);setLoop(!!prefs.loop);applyRate();renderPL();
+if(firstRun)loadRemote(false);
+})();
+</script>
+</body>
+</html>
