@@ -280,6 +280,8 @@
     <div class="changelog-item">
       <strong>v1.2 (2026-10-25)</strong>
       <ul>
+        <li>播放清單：媒體庫內尚未分類的檔案，現在會直接出現在「ALL」清單（標示「未分類（媒體庫）」），按「＋分類」即可放入任一主／次分類；「💾 媒體庫」檢視也能直接按「＋ 放入主／次分類」，並顯示該檔案已放在哪些清單。放入後就和一般項目一樣可排序、篩選。</li>
+        <li>Threads：支援手機版分享短連結（threads.com/share/代碼），會透過轉接服務解析出原貼文網址；若解析失敗會提示改貼完整網址。</li>
         <li>播放速度選項：1.25x 改為「稍快」。</li>
         <li>「同時存入媒體庫」預設改為不打勾。</li>
         <li>播放清單：新增「來源」分類篩選（YouTube、Podcast、媒體庫、Instagram、Threads、連結，各顯示數量），可與主／次分類搭配；清單標題與合計長度會隨篩選更新。</li>
@@ -427,6 +429,7 @@ function loadDB(){
   return defaults();
 }
 let db=loadDB();
+db.libmeta=db.libmeta&&typeof db.libmeta==='object'?db.libmeta:{};
 let prefs=Object.assign({mirror:false,loop:false,rate:1,ui:{}},(()=>{try{return JSON.parse(localStorage.getItem(PKEY))||{};}catch(e){return {};}})());
 prefs.ui=prefs.ui||{};
 const ui=prefs.ui;
@@ -640,6 +643,7 @@ function igParse(u){
     const host=x.hostname.replace(/^www\.|^m\./,'');
     const p=x.pathname.split('/').filter(Boolean);
     if(host==='threads.net'||host==='threads.com'){
+      if(p[0]==='share')return {share:true,threads:true};
       const i=p.findIndex(s=>s==='post'||s==='t');
       const user=p.find(s=>s[0]==='@');
       if(i<0||!p[i+1]||!/^[\w-]{5,}$/.test(p[i+1]))return {bad:true,threads:true};
@@ -655,11 +659,36 @@ function igParse(u){
 const igOk=u=>{const g=igParse(u);return !!(g&&g.code);};
 const igCanon=g=>g.threads?('https://www.threads.com/'+(g.user||'@threads')+'/post/'+g.code):('https://www.instagram.com/'+g.kind+'/'+g.code+'/');
 const igEmbed=g=>igCanon(g).replace(/\/?$/,'/embed');
+/* Threads 手機版「分享短連結」(threads.com/share/xxx)：透過轉接服務讀出原貼文網址 */
+async function resolveThreadsShare(u){
+  const e=encodeURIComponent(u);
+  const tries=['https://api.allorigins.win/raw?url='+e,'https://corsproxy.io/?'+e,'https://api.codetabs.com/v1/proxy?quest='+e,'https://thingproxy.freeboard.io/fetch/'+u];
+  const html=await anyOf(tries.map(async x=>{
+    const r=await fetchTO(x,15000);if(!r.ok)throw new Error('http');
+    const t=await r.text();if(!/threads\.(net|com)\/@[^\/"'\s]+\/post\/[\w-]{5,}/i.test(t))throw new Error('nomatch');
+    return t;
+  }));
+  const m=html.match(/threads\.(?:net|com)\/(@[^\/"'\s<>]+)\/post\/([\w-]{5,})/i);
+  return m?'https://www.threads.com/'+m[1]+'/post/'+m[2]:null;
+}
+async function detectAsync(v){
+  let d=detect(v);
+  if(d&&d.threadsShare){
+    toast('解析 Threads 分享連結中…');
+    try{
+      const u=await resolveThreadsShare(d.url);
+      if(u){d=detect(u);$('#toast').style.display='none';}
+      else d={err:'解析不到貼文網址。請在瀏覽器開啟該連結，再複製網址列中含 /@帳號/post/ 的完整網址。'};
+    }catch(e){d={err:'無法解析 Threads 分享短連結（網頁無法跨站讀取）。請在瀏覽器開啟該連結，再複製網址列中含 /@帳號/post/ 的完整網址。'};}
+  }
+  return d;
+}
 function detect(v){
   v=String(v||'').trim();if(!v)return null;
   const id=ytId(v);if(id)return {type:'youtube',url:'https://www.youtube.com/watch?v='+id};
   const g=igParse(v);
   if(g){
+    if(g.share&&g.threads)return {threadsShare:true,url:v};
     if(g.share)return {err:'這是 Instagram「分享短連結」，無法直接嵌入。請先在瀏覽器開啟它，再複製網址列中含 /reel/ 或 /p/ 的完整網址。'};
     if(g.bad&&g.threads)return {err:'這個 Threads 網址不是單一貼文（網址需含 /@帳號/post/代碼）。'};
     if(g.bad)return {err:'這個 Instagram 網址不是單一貼文或影片（網址需含 /reel/ 或 /p/ 開頭的段落）。'};
@@ -675,6 +704,7 @@ function recordDur(d){
   curDur=d;let ch=false;const k=keyOf(cur);
   const kind=(cur.type==='youtube'||cur.type==='ig')?'v':((cur.src==='Podcast'||video.videoWidth===0)?'a':'v');
   db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(it=>{if(keyOf(it)===k&&(it.dur!==d||it.kind!==kind)){it.dur=d;it.kind=kind;ch=true;}})));
+  if(cur.type==='local'){const lm=db.libmeta[libKey(cur)]=db.libmeta[libKey(cur)]||{};if(lm.dur!==d||lm.kind!==kind){lm.dur=d;lm.kind=kind;ch=true;}}
   if(ch){save();if(!$('#tab-pl').hidden)renderPL();}
 }
 function stopAll(){
@@ -779,6 +809,7 @@ function prevItem(){
 function countPlay(){
   if(!cur)return;const k=keyOf(cur);let ch=false;
   db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(it=>{if(keyOf(it)===k){it.plays=(it.plays||0)+1;ch=true;}})));
+  if(cur.type==='local'){const lm=db.libmeta[libKey(cur)]=db.libmeta[libKey(cur)]||{};lm.plays=(lm.plays||0)+1;ch=true;}
   if(ch){save();if(!$('#tab-pl').hidden)renderPL();}
 }
 /* 單曲循環（video.loop）時不會觸發 ended，改用時間回跳判斷是否完整播完 */
@@ -1036,7 +1067,7 @@ $('#localVideo').addEventListener('change',e=>{
 async function loadFromInput(){
   const v=$('#ytUrl').value.trim();
   if(!v){toast('請先貼上網址');return;}
-  const d=detect(v);
+  const d=await detectAsync(v);
   if(!d||d.err||(d.type==='url'&&!/^https?:\/\//i.test(d.url))){toast((d&&d.err)||'請輸入正確的 YouTube／Instagram 影片網址或 http(s) 影音連結');return;}
   queue=null;
   if(d.type==='youtube'){
@@ -1044,7 +1075,7 @@ async function loadFromInput(){
     playItem(it);
     ytTitle(ytId(d.url)).then(t=>{if(t&&cur===it){it.title=t;$('#nowTitle').textContent=t;updateMeta();}});
   }else if(d.type==='ig'){
-    playItem({id:uid(),type:'ig',title:'Instagram 影片',url:d.url});
+    playItem({id:uid(),type:'ig',title:/threads\./.test(d.url)?'Threads 貼文':'Instagram 影片',url:d.url});
   }else{
     let name='影音連結';try{name=decodeURIComponent(new URL(v).pathname.split('/').pop())||name;}catch(e){}
     playItem({id:uid(),type:'url',title:name,url:v});
@@ -1066,6 +1097,16 @@ function entriesOf(mainId,subId){
       s.items.forEach(it=>out.push({it,main:m,sub:s}));
     });
   });
+  /* 媒體庫內尚未放進任何主／次分類的檔案，在「ALL」中以「未分類」顯示，可按「＋分類」放入主／次分類 */
+  if(mainId===ALL&&subId===ALL){
+    const have=new Set();db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(it=>{if(it.type==='local'){have.add(libKey(it));have.add('n:'+it.name);}})));
+    [...libKeySet].forEach(k=>{
+      const i=k.lastIndexOf('|'),name=k.slice(0,i),size=Number(k.slice(i+1))||0;
+      if(have.has(k)||have.has('n:'+name))return;
+      const lm=db.libmeta[k]||{};
+      out.push({it:{id:'lib:'+k,type:'local',title:stripExt(name),name,size,dur:lm.dur||0,plays:lm.plays||0,kind:lm.kind,virtual:true},main:{name:'未分類'},sub:{name:'媒體庫'},virtual:true});
+    });
+  }
   return out;
 }
 function curSub(){
@@ -1074,8 +1115,9 @@ function curSub(){
   return m?(m.subs.find(s=>s.id===ui.sub)||null):null;
 }
 /* 目前停在 ALL／媒體庫時，加入項目前詢問要放哪個清單 */
-function pickSub(){
-  const s=curSub();if(s)return Promise.resolve(s);
+function pickSubAny(){return pickSub(true);}
+function pickSub(force){
+  const s=force?null:curSub();if(s)return Promise.resolve(s);
   const all=db.mains.flatMap(m=>m.subs.map(sb=>({m,sb})));
   if(!all.length){toast('請先建立主分類與次分類');return Promise.resolve(null);}
   if(all.length===1)return Promise.resolve(all[0].sb);
@@ -1151,6 +1193,12 @@ function playModeBtn(getItems){
   btn.addEventListener('contextmenu',e=>e.preventDefault());
   return btn;
 }
+async function assignLib(it){
+  const sb=await pickSubAny();if(!sb)return;
+  if(sb.items.some(x=>keyOf(x)===keyOf(it))){toast('「'+sb.name+'」已有相同項目');return;}
+  const c=Object.assign({},it,{id:uid()});delete c.virtual;
+  sb.items.push(c);save();toast('已放入「'+sb.name+'」');renderPL();
+}
 function renderPL(){
   const root=$('#plRoot');root.replaceChildren();
   if(!ui.main)ui.main=ALL;
@@ -1223,10 +1271,11 @@ function renderPL(){
         it.src!=='Podcast'&&h('span',{class:'src',text:srcLabel(it)}),
         h('span',{class:'t',text:it.title}),
         (it.type==='local'&&!localAvail(it))&&h('span',{class:'srcnote',text:'（此裝置無檔案）'})),
-      h('div',{class:'meta2'},h('span',{class:'cat',text:e.main.name+' / '+e.sub.name}),
+      h('div',{class:'meta2'},h('span',{class:'cat',text:e.virtual?'未分類（媒體庫）':e.main.name+' / '+e.sub.name}),
+        e.virtual&&h('button',{class:'linkbtn',style:'flex:none;margin-right:8px',onclick:()=>assignLib(it),text:'＋分類'}),
         h('span',{class:'cnt',text:((it.kind||((it.type==='youtube'||it.type==='ig')?'v':'a'))==='v'?'觀看次數：':'聆聽次數：')+(it.plays||0)}),
         h('span',{class:'len',text:it.dur?fmtT(it.dur):''})));
-    if(plEdit){
+    if(plEdit&&!e.virtual){
       const sel=h('select',{style:'max-width:150px;padding:5px',onchange:ev=>{
         const v=ev.target.value;if(!v)return;const [mi,si]=v.split('|').map(Number);
         const to=db.mains[mi]&&db.mains[mi].subs[si];if(!to)return;
@@ -1257,11 +1306,12 @@ async function fillDurs(){
   try{
     const todo=[];
     db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(it=>{if(it.type==='local'&&!it.dur&&!fillTried.has(keyOf(it)))todo.push(it);})));
+    [...libKeySet].forEach(k=>{const i=k.lastIndexOf('|');const it={type:'local',name:k.slice(0,i),size:Number(k.slice(i+1))||0};if(!(db.libmeta[k]&&db.libmeta[k].dur)&&!fillTried.has(keyOf(it)))todo.push(it);});
     for(const it of todo.slice(0,40)){
       fillTried.add(keyOf(it));
       const b=await resolveLocal(it);if(!b)continue;
       const d=await new Promise(res=>{const a=document.createElement('video');const u=URL.createObjectURL(b);const end=v=>{URL.revokeObjectURL(u);a.removeAttribute('src');res(v);};a.preload='metadata';a.onloadedmetadata=()=>end(a.duration);a.onerror=()=>end(0);setTimeout(()=>end(0),8000);a.src=u;});
-      if(isFinite(d)&&d>0){db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(x=>{if(keyOf(x)===keyOf(it)){x.dur=Math.round(d);ch=true;}})));}
+      if(isFinite(d)&&d>0){db.mains.forEach(m=>m.subs.forEach(sb=>sb.items.forEach(x=>{if(keyOf(x)===keyOf(it)){x.dur=Math.round(d);ch=true;}})));const lm=db.libmeta[libKey(it)]=db.libmeta[libKey(it)]||{};lm.dur=Math.round(d);ch=true;}
     }
   }catch(e){}
   fillBusy=false;
@@ -1307,11 +1357,14 @@ function renderLibView(root){
       const row=h('div',{class:'item'+(keyOf(it)===playingKey?' playing':'')},
         h('button',{class:'ititle',onclick:()=>playQueue(libItems,i)},
           h('span',{class:'src',text:'本機'}),h('span',{class:'t',text:it.title}),h('span',{class:'srcnote',text:fmtMB(r.size)})));
-      if(plEdit)row.append(h('div',{class:'ops'},
-        ib('＋','加入播放清單',async()=>{
-          const s=await pickSub();if(!s)return;
+      const inLists=[];db.mains.forEach(m=>m.subs.forEach(sb=>{if(sb.items.some(x=>x.type==='local'&&(libKey(x)===r.key||x.name===r.name)))inLists.push(m.name+' / '+sb.name);}));
+      row.append(h('div',{class:'meta2'},h('span',{class:'cat',text:inLists.length?'已在：'+inLists.join('、'):'未分類'}),
+        h('button',{class:'linkbtn',style:'flex:none',onclick:async()=>{
+          const s=await pickSubAny();if(!s)return;
           if(s.items.some(x=>keyOf(x)===keyOf(it))){toast('「'+s.name+'」已有相同項目');return;}
-          s.items.push(Object.assign({},it,{id:uid()}));save();toast('已加入「'+s.name+'」');}),
+          const lm=db.libmeta[r.key]||{};
+          s.items.push(Object.assign({},it,{id:uid(),dur:lm.dur||0,plays:lm.plays||0,kind:lm.kind}));save();toast('已放入「'+s.name+'」');renderPL();},text:'＋ 放入主／次分類'})));
+      if(plEdit)row.append(h('div',{class:'ops'},
         ib('🗑','從媒體庫刪除',async()=>{
           if(!await confirmBox('從媒體庫刪除「'+r.name+'」？播放清單中的項目會保留，但下次播放需重新選檔。'))return;
           await libDel(r.key);await refreshLibKeys();renderPL();},'danger')));
@@ -1340,12 +1393,12 @@ async function addCurrent(){
 async function addManual(){
   const r=await ask('以網址新增項目',[{key:'u',label:'YouTube／Instagram／影音音訊連結（也可填同資料夾的相對路徑）',placeholder:'https://'},{key:'t',label:'標題（可留空）'}]);
   if(!r||!r.u)return;
-  const d=detect(r.u);
+  const d=await detectAsync(r.u);
   if(!d||!d.type){toast((d&&d.err)||'網址格式不正確');return;}
   const sub=await pickSub();if(!sub)return;
   let title=r.t;
   if(d.type==='youtube'&&!title)title=await ytTitle(ytId(d.url));
-  if(d.type==='ig'&&!title)title='Instagram 影片';
+  if(d.type==='ig'&&!title)title=/threads\./.test(d.url)?'Threads 貼文':'Instagram 影片';
   if(!title){try{title=decodeURIComponent(new URL(r.u,location.href).pathname.split('/').pop());}catch(e){}}
   sub.items.push({id:uid(),type:d.type,title:title||'未命名',url:d.url});
   save();renderPL();toast('已加入「'+sub.name+'」');
