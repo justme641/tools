@@ -83,6 +83,7 @@
     .badge { font-size: 11px; border: 1px solid #4b5563; border-radius: 6px; padding: 0 5px; color: var(--sub); flex: none; }
     .meta { font-size: 12px; color: var(--sub); }
     .sr { display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding: 8px 0; }
+    .ph { width: 48px; height: 48px; border-radius: 8px; background: var(--line); flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; }
     .sr img, .cover { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: var(--line); flex: none; }
     .hint { font-size: 13px; color: var(--sub); margin: 6px 0; }
     .hint.warn { color: var(--danger); }
@@ -108,8 +109,7 @@
     body { overflow-x: hidden; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
     .urlbtns { display: flex; gap: 8px; }
     .urlbtns button { flex: 1; justify-content: center; padding: 10px 6px; font-size: .9rem; white-space: nowrap; }
-    .container, .changelog-section, .tabs { min-width: 0; max-width: 100%; }
-    #tab-pl, #tab-pod, #tab-bk, .tabs { max-width: 560px; }
+    .container, .changelog-section, .tabs { min-width: 0; width: 100%; max-width: 800px; }
     .container { overflow-wrap: anywhere; }
     .item, .ititle, .row, .bhead, .ops, .grow { min-width: 0; }
     .ititle .t { min-width: 0; overflow-wrap: anywhere; }
@@ -164,7 +164,7 @@
 </head>
 <body>
 
-  <h1>影音播放器 <small>v1.2</small></h1>
+  <h1>影音播放器 <small>v1.3</small></h1>
   <button id="installBtn" class="btn-download" hidden style="margin-bottom:14px">📲 安裝到主畫面</button>
 
   <div class="container">
@@ -227,7 +227,7 @@
       </div>
       <div class="control-row" style="margin-top: 10px;">
         <span class="lbl">跳到指定時間：</span>
-        <input type="text" id="seekIn" placeholder="例如 1:23 或 83" autocomplete="off" style="width:140px">
+        <input type="text" id="seekIn" placeholder="例如 1:23 或 83" autocomplete="off" style="flex:1 1 120px;min-width:0;max-width:240px">
         <button id="seekGo" title="跳轉播放" aria-label="跳轉播放">▶</button>
       </div>
       <div class="control-row" style="margin-top: 10px;">
@@ -273,7 +273,7 @@
     <h3>關於資料儲存</h3>
     <ul class="hint">
       <li>所有資料只存在「這台裝置的這個瀏覽器」，不會上傳到任何伺服器，也不會存到 GitHub。</li>
-      <li>存入媒體庫的檔案是「複製一份」到瀏覽器，會額外占用這台裝置的儲存空間；到「播放清單」頁的「💾 媒體庫」可查看用量與刪除。</li>
+      <li>存入媒體庫的檔案是「複製一份」到瀏覽器，會額外占用這台裝置的儲存空間；到「播放清單」頁，在 ALL 下點「來源」列的「媒體庫」可查看用量與刪除。</li>
       <li>清除網站資料、換瀏覽器或換手機，資料就會消失，請定期到「播放清單」頁匯出備份。</li>
       <li>匯入其他裝置的備份時，本機檔案項目會自動略過；同一台裝置的備份則會完整還原。「合併」時，同名分類中已有的相同影片不會重複匯入。</li>
     </ul>
@@ -281,79 +281,41 @@
     <details class="changelog-section">
     <summary class="changelog-title">📜 修改歷程紀錄 (Changelog)（點此展開／收合）</summary>
     <div class="changelog-item">
+      <strong>v1.3 (2026-10-26)</strong>
+      <ul>
+        <li>新增「▶ YouTube」分頁：搜尋或貼網址收藏頻道，查看最新 15 部影片。</li>
+      </ul>
+    </div>
+    <div class="changelog-item">
       <strong>v1.2 (2026-10-25)</strong>
       <ul>
-        <li>YouTube 頻道影片抓取重寫：改為 RSS、Piped、Invidious、頻道頁面四個來源同時查詢，最先成功者採用（最多 15 部），縮圖固定使用 YouTube 影片縮圖網址；畫面顯示本次使用的來源。</li>
-        <li>新增「▶ YouTube」分頁（Podcast 與說明之間）：可搜尋 YouTube 頻道（或貼頻道網址／@名稱）並收藏，點頻道看最新影片（約 15 部）、點標題播放、☆ 收藏到播放清單；頻道清單可改名、排序、刪除，並包含在匯出／匯入備份中。搜尋靠公開服務與轉接，可能偶爾失敗。</li>
-        <li>主分類列移除「💾 媒體庫」；媒體庫檢視改由「來源」列的「媒體庫」進入（在 ALL 下）。</li>
-        <li>匯出備份：Podcast 單集每次完整聽完，會記錄開始與結束日期時間（僅寫入匯出檔，網頁上不顯示）。</li>
-        <li>播放視窗：單曲標題下方新增灰字「已播放／總長度・剩餘」。</li>
-        <li>播放清單：媒體庫內尚未分類的檔案，現在會直接出現在「ALL」清單（標示「未分類（媒體庫）」），按「＋分類」即可放入任一主／次分類；「💾 媒體庫」檢視也能直接按「＋ 放入主／次分類」，並顯示該檔案已放在哪些清單。放入後就和一般項目一樣可排序、篩選。</li>
-        <li>Threads：支援手機版分享短連結（threads.com/share/代碼），會透過轉接服務解析出原貼文網址；若解析失敗會提示改貼完整網址。</li>
-        <li>播放速度選項：1.25x 改為「稍快」。</li>
-        <li>「同時存入媒體庫」預設改為不打勾。</li>
-        <li>播放清單：新增「來源」分類篩選（YouTube、Podcast、媒體庫、Instagram、Threads、連結，各顯示數量），可與主／次分類搭配；清單標題與合計長度會隨篩選更新。</li>
-        <li>影片網址：新增 Threads 貼文（threads.net／threads.com 的 /@帳號/post/代碼）嵌入播放；與 Instagram 相同，需對方允許嵌入，若只出現登入畫面請用「在原站開啟」。</li>
+        <li>分享預覽標題改為「影音播放器」。</li>
+        <li>播放清單：每首顯示播放次數（完整播完才計）；新增「來源」篩選（YouTube、Podcast、媒體庫、Instagram、Threads、連結）。</li>
+        <li>播放：支援 Threads 貼文（Chrome）連結；播放視窗顯示「已播放／總長度・剩餘」。</li>
+        <li>備份：匯出記錄 Podcast 完整收聽的起訖時間（網頁不顯示）。</li>
       </ul>
     </div>
     <div class="changelog-item">
       <strong>v1.1 (2026-10-24)</strong>
       <ul>
-        <li>版面調整：影片網址獨立一列，其下為「載入播放／複製網址／清除」三鍵；原「複製網址並開啟 YTDLnis」改併入提示列的小按鈕。</li>
-        <li>播放控制：取消「最前／最後」按鈕（快捷鍵與全螢幕內仍可切換上一個／下一個）；新增「跳到指定時間」播放（支援 1:23、1:02:03 或秒數）。</li>
-        <li>版面調整：播放清單、Podcast、媒體庫設定改為手機直立閱讀寬度，修正內容被遮住與橫向溢出的問題。</li>
-        <li>修改歷程：預設收合，點選標題才展開。</li>
-        <li>Podcast：取消貼上 RSS 的欄位，只保留名稱搜尋訂閱；單集每頁 50 筆，顯示「第 x / y 頁（共 N 集）」並可翻頁；新增單集關鍵字搜尋；「＋」改為☆，收藏後變★（可再按一次取消），並可只看收藏；單集下載前新增確認視窗。</li>
-        <li>備份匯入：「合併」時，同名主／次分類中已有相同影片就不再重複匯入，並顯示新增與略過的數量；網站預設清單新增更詳細的操作說明。</li>
-        <li>僅音訊播放（MP3、M4A、Podcast 等）時，影片框改顯示封面：優先使用節目／單集圖片，本機檔案則讀取內嵌封面，皆無時顯示預設音樂圖示。</li>
-        <li>全螢幕：新增右上角「✕ 離開全螢幕」、上一個／下一個與鏡像按鈕，支援 Esc 離開，離開後自動捲回播放器；不支援原生全螢幕的瀏覽器改用滿版模式。</li>
-        <li>功能擴充：支援貼上 Instagram 公開貼文／Reels 網址（含 /reel/、/p/、/tv/）直接嵌入觀看，無須註冊，並可加入播放清單。</li>
-        <li>版面調整：移除「複製並開啟 YTDLnis」按鈕；「同時存入媒體庫」的說明文字與 YTDLnis 下載提示（註明僅 Android 適用）收進「更多」。</li>
-        <li>全螢幕：取消上一個／下一個按鈕，只保留鏡像與離開。</li>
-        <li>用語統一：全站「本機」改為「本機」。</li>
-        <li>版面調整：鏡像翻轉、播放速度、跳到指定時間、A-B 重複收進可展開的「更多控制」，標題列會顯示目前啟用的設定；鏡像翻轉圖示改為 ↔。</li>
-        <li>播放接續：重新整理或切換電腦版／手機版後，自動接續上次播放的影音與位置（5 分鐘內；本機檔案需已存入媒體庫）；手機上首次播放 YouTube 時提示背景播放的方法。</li>
-        <li>播放清單：項目的改標題、排序、移至、刪除，改為按清單上方「✎ 編輯」後才顯示。</li>
-        <li>媒體庫：併入播放清單頁，新增「💾 媒體庫」檢視可看到這台裝置的全部檔案，原設定頁的媒體庫區塊取消；清單項目標題前以灰字標示來源（YT、IG、本機、Podcast、連結），此裝置沒有的本機檔案會註明。</li>
-        <li>Podcast：預設不展開單集，點選「我的 Podcast」中的節目才展開（再點一次收合）；單集直接點標題播放，☆／⬇ 移到單集上方，日期與長度改為標題前的灰字；單集資料同時向 iTunes、節目 RSS（多個轉接來源）取得並自動合併去重，最多保留最新 600 集。</li>
-        <li>設定頁：取消「網站預設清單」與從網站載入功能；頁面更名為「說明」，並收納使用說明與修改歷程。</li>
-        <li>背景播放：通知欄／鎖定畫面的播放、暫停、前後 10 秒控制，現在也能控制 YouTube；切到背景被系統暫停時，會自動嘗試恢復播放。移除「勾選電腦版網站」的彈出提示，改在說明頁提供操作步驟。</li>
-        <li>版面調整：「更多控制」改為控制列上的 ⚙ 圖示按鈕，不再多占一列；啟用鏡像、變速或 A-B 時圖示會亮起。</li>
-        <li>播放清單：歌曲清單上方只保留「播放全部」「目前播放」，匯入檔案、網址、編輯、匯出／匯入清單與上次匯出時間，併入「更多」展開；備份逾期時「更多」會顯示 ⚠。</li>
-        <li>Podcast：☆／⬇ 移到單集日期與長度的下一列，標題維持正常顯示。</li>
-        <li>介面：移除網址欄上方的「（或影音直連網址）」文字。</li>
-        <li>播放接續：修正切換電腦版／手機版後歌曲消失的問題（重新載入初期不再把位置覆寫成 0）；接續時間放寬為 30 分鐘，暫停中的影音也會回到原位置；播放 YouTube 時加入無聲保活音訊，讓通知欄的播放鍵在被系統暫停後仍保留（仍取決於手機與瀏覽器，無法保證）。</li>
-        <li>背景播放修正：取消 YouTube 無聲保活音訊與自動重播（會讓通知欄按鍵無反應、或把使用者按的暫停又播回去）；YouTube 的通知欄改回由 YouTube 播放器自行控制，本機檔案／Podcast 仍由本頁控制。</li>
-        <li>Podcast 來源記憶與快取：節目會記住成功的來源（RSS 優先，其次 iTunes、rss2json）與單集清單，之後點開直接讀快取；「⟳」改為「切換來源／重新整理」，可手動切換 RSS／iTunes 或清除快取重抓。</li>
-        <li>YouTube 錯誤 153：加入來源網址（referrer／origin）設定，並在發生 153 時提示請由正式網址開啟。</li>
-        <li>播放速度選項文字：1.25x 稍速、1.5x 快速、2.0x 超快速。</li>
-        <li>播放次數：播放清單每首歌新增「觀看次數／聆聽次數」（影片顯示觀看、音訊顯示聆聽），完整播放完畢才會加 1；位置在長度左側並直線對齊。分享連結預覽文字改為「影音播放器」（若仍顯示舊文字，是 GitHub 上的舊檔或通訊軟體的預覽快取）。</li>
-        <li>修改歷程預設收合；更多裡補充說明媒體庫存放在瀏覽器網站資料內（檔案管理員看不到），已取消「媒體庫」連結。</li>
-        <li>播放清單：「主分類 / 次分類」靠左、長度靠右；Podcast 來源不再顯示灰色來源字。「▶ 播放全部」短按播放，長按切換為「▶ 播放單曲」（再長按切回），兩種都是循環播放。</li>
-        <li>A-B：「設 A 起點／設 B 終點」改為 A、B 圖示；新增 ✂ 剪輯，將 A-B 區段存成音訊（WAV）放進媒體庫（本機檔案與可讀取的連結適用，YouTube／Instagram 不適用）。</li>
-        <li>文字：YTDLnis 提示改為「下載音訊可以讓你聽歌不中斷／僅 Android 適用」，並簡化下載連結文字。</li>
-        <li>播放清單：每首歌曲以灰字顯示「主分類 / 次分類」與長度（靠右）；清單標題顯示目前篩選的合計長度（部分長度未知時於後加「+」）。長度在播放過一次後自動記錄，本機檔案會於背景補算。</li>
-        <li>Podcast 單集搜尋：輸入關鍵字時，除了篩選快取，也會同步向 iTunes 搜尋該節目更早的單集（快取以外），結果顯示在下方，可直接播放、收藏、下載。</li>
-        <li>Podcast 版面：單集左側為日期長度與 ☆／⬇（靠上對齊），右側為標題，☆／⬇ 與標題第二行對齊；「跳轉播放」與 A-B「清除」改為只顯示圖示。</li>
+        <li>播放：新增「跳到指定時間」；僅音訊時顯示封面；全螢幕提供「✕ 離開」與鏡像按鈕；支援 Instagram 貼文／Reels 嵌入。</li>
+        <li>Podcast：以頻道名稱搜尋訂閱；支援單集關鍵字搜尋、☆／★ 收藏、⬇ 下載前確認；按「⟳」可切換 RSS／iTunes、重新整理或清除快取。</li>
+        <li>A-B：新增 ✂ 剪輯，將 A-B 區段存成音訊放進媒體庫。</li>
+        <li>播放清單：每首顯示分類與長度，清單標題顯示合計長度；「▶ 播放全部」長按切換「播放單曲」（皆循環）。</li>
       </ul>
     </div>
     <div class="changelog-item">
       <strong>v1.0 (2026-10-23)</strong>
       <ul>
-        <li>創立專案：實現本機影音與 YouTube 嵌入鏡像播放器、全螢幕、循環播放及速度調節。</li>
-        <li>介面調整：優化按鈕配色，將標題簡化為「影音播放器」。</li>
-        <li>功能擴充：新增本機 MP3/M4A 音訊播放支援。</li>
-        <li>下載整合：新增點擊複製網址並嘗試喚醒 YTDLnis App 功能，並在介面加入官方 GitHub Releases 下載專屬直達捷徑。</li>
-        <li>播放優化：支援影音直連網址；YouTube 改用 IFrame API，速度與循環可直接調整且不需重新載入；記住鏡像、循環與速度設定；新增快捷鍵、手機鎖定畫面媒體控制、A-B 區段重複、播放速度 1.5x／2.0x、可一次選取多個本機檔案連續播放；載入失敗時顯示提示。</li>
-        <li>媒體庫：本機影音可存入瀏覽器媒體庫（IndexedDB），下次不用重新選檔即可直接播放。</li>
-        <li>功能擴充：新增自訂播放清單，可建立主分類與次分類，分類與項目皆可改名、刪除、調整順序，項目可移至其他次分類，並可連續播放整份清單。</li>
-        <li>資料管理：新增匯出／匯入（合併或取代）備份檔；首次開啟自動讀取同資料夾的 mirror-data.json 作為預設清單，並可手動載入合併。</li>
-        <li>功能擴充：新增 Podcast 訂閱清單（搜尋或貼上 RSS）、單集播放、加入播放清單，以及單集音訊下載（來源允許時直接下載，否則改開新分頁）。</li>
-        <li>清單分類：主分類與次分類新增「ALL」，每次開啟預設顯示全部清單，可跨分類瀏覽與連續播放；停在 ALL 時加入項目會詢問要放進哪個清單。</li>
-        <li>備份流程：匯出／匯入入口移到播放清單頁最上方，匯入時直接選擇「合併」或「取代」；匯入其他裝置的備份時，自動略過本機媒體庫項目。</li>
-        <li>Podcast：修正節目單集無法讀取的問題，改以 iTunes 單集資料為主，並加入多個 RSS 備援來源。</li>
-        <li>介面調整：載入播放按鈕旁新增「✕ 清除」按鈕。</li>
-        <li>PWA：新增 manifest 與 service worker，可安裝到主畫面，頁面本身可離線開啟。</li>
+        <li>新建：
+          <ul>
+            <li>播放：本機與 YouTube 嵌入播放（含 MP3／M4A、影音網址、多檔連續播放）；鏡像、全螢幕、循環、速度調節、A-B 重複；鍵盤快捷鍵（桌機）、通知欄／鎖定畫面播放控制（手機）。</li>
+            <li>清單：自訂播放清單；匯出／匯入備份。</li>
+            <li>Podcast：搜尋訂閱、單集播放、下載、加入清單。</li>
+            <li>媒體庫：本機檔案存入瀏覽器，免重新選檔。</li>
+          </ul>
+        </li>
+        <li>PWA：可安裝到主畫面，頁面可離線開啟。</li>
       </ul>
     </div>
   </details>
@@ -1302,10 +1264,10 @@ function renderPL(){
         (it.type==='local'&&!localAvail(it))&&h('span',{class:'srcnote',text:'（此裝置無檔案）'})),
       h('div',{class:'meta2'},h('span',{class:'cat',text:e.virtual?'未分類（媒體庫）':e.main.name+' / '+e.sub.name}),
         e.virtual&&h('button',{class:'linkbtn',style:'flex:none;margin-right:8px',onclick:()=>assignLib(it),text:'＋分類'}),
-        h('span',{class:'cnt',text:((it.kind||((it.type==='youtube'||it.type==='ig')?'v':'a'))==='v'?'觀看次數：':'聆聽次數：')+(it.plays||0)}),
+        h('span',{class:'cnt',text:'播放次數：'+(it.plays||0)}),
         h('span',{class:'len',text:it.dur?fmtT(it.dur):''})));
     if(plEdit&&!e.virtual){
-      const sel=h('select',{style:'max-width:150px;padding:5px',onchange:ev=>{
+      const sel=h('select',{style:'flex:1 1 130px;min-width:0;max-width:100%;padding:5px',onchange:ev=>{
         const v=ev.target.value;if(!v)return;const [mi,si]=v.split('|').map(Number);
         const to=db.mains[mi]&&db.mains[mi].subs[si];if(!to)return;
         owner.items.splice(owner.items.indexOf(it),1);to.items.push(it);save();toast('已移至「'+db.mains[mi].name+' / '+to.name+'」');renderPL();
@@ -1914,7 +1876,7 @@ async function vidsFromPiped(cid){
     const m=String(x.url||'').match(/[?&]v=([\w-]{11})/);
     return m?mkVid(m[1],x.title,x.uploaded>0?new Date(x.uploaded).toISOString():'',x.uploadedDate||''):null;
   }).filter(Boolean);
-  return {name:j.name||'',list};
+  return {name:j.name||'',image:chImg(j.avatarUrl),list};
 }
 async function vidsFromInvidious(cid){
   const j=await firstJson(['yewtu.be','inv.nadeko.net','invidious.nerdvpn.de'].map(h=>'https://'+h+'/api/v1/channels/'+cid+'/videos?sort_by=newest'));
@@ -1938,7 +1900,8 @@ async function vidsFromPage(cid){
     for(const k in o)walk(o[k]);
   })(data);
   const h1=t.match(/<meta property="og:title" content="([^"]+)"/);
-  return {name:h1?h1[1]:'',list};
+  const im=t.match(/<meta property="og:image" content="([^"]+)"/);
+  return {name:h1?h1[1]:'',image:im?chImg(im[1]):'',list};
 }
 async function channelVideos(cid){
   const sources=[['RSS',vidsFromRss],['Piped',vidsFromPiped],['Invidious',vidsFromInvidious],['頻道頁面',vidsFromPage]];
@@ -1955,6 +1918,7 @@ async function refreshCh(c,quiet){
   try{
     const r=await channelVideos(c.cid);
     c.vids=r.list;c.src=r.src;c.at=Date.now();
+    if(!c.image)c.image=r.image||(r.list[0]&&r.list[0].image)||'';
     if((!c.name||c.name==='YouTube 頻道')&&r.name)c.name=r.name;
     save();if(!$('#tab-yt').hidden)renderYt();
     if(!quiet)toast('已更新，共 '+c.vids.length+' 部（來源：'+r.src+'）');else $('#toast').style.display='none';
@@ -1970,6 +1934,19 @@ function addChannel(x){
   const c={id:uid(),name:x.name||'YouTube 頻道',cid:x.cid,image:x.image||'',vids:[],at:0};
   db.channels.push(c);ui.ch=c.id;save();renderYt();refreshCh(c,true);toast('已收藏頻道「'+c.name+'」');
 }
+/* 頻道頭像：載入失敗時改用最新影片縮圖，再失敗就顯示預設圖示 */
+function chPlaceholder(){return h('span',{class:'ph',text:'📺'});}
+function chAvatar(c,cls){
+  if(!c.image)return chPlaceholder();
+  const img=h('img',{class:cls||'cover',src:c.image,alt:'',referrerpolicy:'no-referrer'});
+  let tried=false;
+  img.onerror=()=>{
+    const alt=c.vids&&c.vids[0]&&c.vids[0].image;
+    if(!tried&&alt&&alt!==img.getAttribute('src')){tried=true;c.image=alt;save();img.src=alt;return;}
+    img.replaceWith(chPlaceholder());
+  };
+  return img;
+}
 function renderYt(){
   const root=$('#ytRoot');root.replaceChildren();
   const q=h('input',{type:'search',placeholder:'搜尋 YouTube 頻道名稱，或貼上頻道網址／@名稱'});
@@ -1984,7 +1961,7 @@ function renderYt(){
       else list=await searchChannels(term);
       res.replaceChildren();
       list.slice(0,15).forEach(x=>res.append(h('div',{class:'sr'},
-        x.image&&h('img',{src:x.image,alt:'',loading:'lazy'}),
+        x.image?h('img',{src:x.image,alt:'',loading:'lazy',referrerpolicy:'no-referrer',onerror:ev=>ev.target.replaceWith(chPlaceholder())}):chPlaceholder(),
         h('div',{class:'grow'},h('div',{text:x.name}),h('div',{class:'meta',text:x.note||x.cid})),
         h('button',{onclick:()=>addChannel(x),text:db.channels.some(c=>c.cid===x.cid)?'已收藏':'＋ 收藏'}))));
     }catch(e){res.replaceChildren(h('div',{class:'hint warn',text:'搜尋失敗：公開搜尋服務目前連不上。可改貼頻道網址（例如 https://www.youtube.com/@名稱）或 @名稱 後再按搜尋。'}));}
@@ -2007,7 +1984,7 @@ function renderYt(){
   }));
   if(!c){root.append(h('div',{class:'hint',text:db.channels.length?'點選上方頻道名稱，即可看到最新影片。':'尚未收藏任何頻道。請在上方搜尋頻道名稱後按「＋ 收藏」。'}));return;}
   const blk=h('div',{class:'block'},
-    h('div',{class:'bhead'},h('div',{class:'row'},c.image&&h('img',{class:'cover',src:c.image,alt:''}),h('strong',{text:c.name})),
+    h('div',{class:'bhead'},h('div',{class:'row'},chAvatar(c),h('strong',{text:c.name})),
       h('span',{class:'meta',text:(c.src?'來源：'+c.src+'・':'')+(c.at?'更新於 '+new Date(c.at).toLocaleString('zh-TW'):'')})));
   if(!c.vids.length)blk.append(h('div',{class:'hint',text:'尚無影片資料，請稍候，或按上方 ⟳ 重新整理。'}));
   c.vids.forEach(v=>{
