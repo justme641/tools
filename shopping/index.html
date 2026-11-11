@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#167860">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>購物查價</title>
+<style>
+:root{
+  --bg:#f6f7f5; --card:#ffffff; --ink:#1d2421; --sub:#66716c; --line:#e1e6e3;
+  --brand:#167860; --brand-ink:#ffffff; --warn:#b45309; --danger:#c0392b; --chip:#e8f3ef;
+}
+:root[data-theme="dark"]{
+  --bg:#121614; --card:#1b211e; --ink:#e8eeeb; --sub:#9aa7a1; --line:#2b3430;
+  --brand:#34b595; --brand-ink:#08130f; --warn:#f0a04b; --danger:#ef7b6e; --chip:#20302a;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121614; --card:#1b211e; --ink:#e8eeeb; --sub:#9aa7a1; --line:#2b3430;
+    --brand:#34b595; --brand-ink:#08130f; --warn:#f0a04b; --danger:#ef7b6e; --chip:#20302a;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+#view{padding:12px 14px calc(84px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+h1{font-size:20px;margin:6px 0 10px}
+h2{font-size:16px;margin:18px 0 8px;color:var(--sub);font-weight:600}
+a{color:var(--brand)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+.row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin:8px 0;color:inherit;text-decoration:none}
+.row .grow{flex:1;min-width:0}
+.row .grow b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.right{text-align:right;white-space:nowrap}
+.sub{color:var(--sub);font-size:13px}
+.thumb{width:46px;height:46px;border-radius:8px;background:var(--chip);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:22px;flex:none}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.big-photo{width:100%;max-height:220px;object-fit:contain;border-radius:10px;background:var(--chip)}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+button.primary,.btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);font-weight:600}
+button.danger{color:var(--danger)}
+button.small{min-height:34px;padding:4px 10px;font-size:14px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.btns>*{flex:1 1 auto}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+textarea{min-height:88px}
+label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+label.check{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)}
+label.check input{width:auto;min-height:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chip{display:inline-block;background:var(--chip);color:var(--brand);border-radius:999px;padding:1px 10px;font-size:12px;margin-left:6px}
+.chip.warn{color:var(--warn)}
+.banner{background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:14px}
+.banner.warn{color:var(--warn)}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl td,.tbl th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.tbl td.r,.tbl th.r{text-align:right}
+.total{font-size:26px;font-weight:700}
+.qty{display:flex;align-items:center;gap:6px}
+.qty button{width:40px;padding:0}
+.qty span{min-width:28px;text-align:center;font-weight:600}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav a{flex:1;text-align:center;padding:8px 0 6px;text-decoration:none;color:var(--sub);font-size:12px}
+nav a b{display:block;font-size:20px;font-weight:400}
+nav a.on{color:var(--brand);font-weight:600}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;max-width:86vw;text-align:center}
+#toast.show{opacity:.95}
+#scan{position:fixed;inset:0;background:#000;z-index:30;display:none;flex-direction:column}
+#scan.on{display:flex}
+#scan video{flex:1;width:100%;object-fit:cover;min-height:0}
+#scan .bar{padding:14px;display:flex;gap:10px;align-items:center;color:#fff;background:#000}
+#scan .bar span{flex:1}
+.hint{color:var(--sub);font-size:13px;margin:4px 0}
+</style>
+</head>
+<body>
+<div id="view"></div>
+<nav id="nav">
+  <a href="#/" data-nav="home"><b>🔍</b>首頁</a>
+  <a href="#/cart" data-nav="cart"><b>🛒</b>購物車<span id="cartBadge"></span></a>
+  <a href="#/records" data-nav="records"><b>🧾</b>紀錄</a>
+  <a href="#/settings" data-nav="settings"><b>⚙️</b>設定</a>
+</nav>
+<div id="toast"></div>
+<div id="scan">
+  <video id="scanVideo" playsinline muted></video>
+  <div class="bar"><span>將條碼對準畫面</span><button id="scanClose">關閉</button></div>
+</div>
+<script src="core.js"></script>
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('sw.js').catch(function () {});
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "商品資料庫與購物車",
+  "short_name": "購物查價",
+  "description": "掃條碼建檔、手動查價、購物車結帳試算（資料只存本機）",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f7f5",
+  "theme_color": "#167860",
+  "lang": "zh-Hant-TW",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
