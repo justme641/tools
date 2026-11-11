@@ -73,12 +73,34 @@ nav a.on{color:var(--brand);font-weight:600}
 #scan .bar{padding:14px;display:flex;gap:10px;align-items:center;color:#fff;background:#000}
 #scan .bar span{flex:1}
 .hint{color:var(--sub);font-size:13px;margin:4px 0}
+
+[hidden]{display:none!important}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;-webkit-overflow-scrolling:touch}
+.chipbtn{flex:none;min-height:36px;padding:4px 14px;border-radius:999px;font-size:14px}
+.chipbtn.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);font-weight:600}
+.hero{display:flex;align-items:center;gap:4px;touch-action:pan-y;user-select:none}
+.hero-main{flex:1;min-width:0}
+.nav-arrow{flex:none;width:34px;min-height:64px;padding:0;font-size:28px;border:0;background:transparent;color:var(--brand)}
+.nav-arrow:disabled{opacity:.25}
+.sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sec-ctl{display:flex;gap:6px}
+.sec-ctl button{min-width:44px}
+.fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;padding:0;font-size:26px;background:var(--brand);color:var(--brand-ink);border:0;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:6}
+.fab-plus{position:absolute;right:6px;top:4px;font-size:15px;font-weight:700}
+.fab-badge{position:absolute;left:-2px;top:-2px;min-width:22px;height:22px;border-radius:11px;background:var(--warn);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.subcard{border:1px dashed var(--line);border-radius:10px;padding:0 10px 10px;margin-top:8px}
+.pick{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:4px 10px;margin-top:6px}
+.pick label.check{margin:10px 0}
+.tbl input[type=checkbox],.pick input[type=checkbox]{width:22px;height:22px;min-height:0;flex:none}
+.promo-line{color:var(--warn)}
+nav a{font-size:11px}
 </style>
 </head>
 <body>
 <div id="view"></div>
 <nav id="nav">
   <a href="#/" data-nav="home"><b>🔍</b>首頁</a>
+  <a href="#/promos" data-nav="promos"><b>🏷️</b>特價</a>
   <a href="#/cart" data-nav="cart"><b>🛒</b>購物車<span id="cartBadge"></span></a>
   <a href="#/records" data-nav="records"><b>🧾</b>紀錄</a>
   <a href="#/settings" data-nav="settings"><b>⚙️</b>設定</a>
