@@ -71,9 +71,9 @@
     if (unit === 'l' || unit === 'L') { total *= 1000; base = 'ml'; }
     else if (unit === 'kg') { total *= 1000; base = 'g'; }
     if (base === 'ml' || base === 'g') {
-      return { value: price / total * 100, label: '每 100' + base };
+      return { value: price / total * 100, label: '每 100' + base, per: '100' + base };
     }
-    return { value: price / total, label: '每' + (unit || '單位') };
+    return { value: price / total, label: '每' + (unit || '單位'), per: '1' + (unit || '單位') };
   }
 
   // 購物車：lines = [{price, qty}]
@@ -96,8 +96,9 @@
   function latestByStore(prices) {
     const map = {};
     prices.forEach(p => {
-      const cur = map[p.storeId];
-      if (!cur || p.date > cur.date || (p.date === cur.date && (p.createdAt || 0) >= (cur.createdAt || 0))) map[p.storeId] = p;
+      const key = p.storeId + (p.place ? '|' + p.place : ''); // 「其他賣場」依實際購買處分開
+      const cur = map[key];
+      if (!cur || p.date > cur.date || (p.date === cur.date && (p.createdAt || 0) >= (cur.createdAt || 0))) map[key] = p;
     });
     return map;
   }

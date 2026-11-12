@@ -94,6 +94,15 @@ nav a.on{color:var(--brand);font-weight:600}
 .tbl input[type=checkbox],.pick input[type=checkbox]{width:22px;height:22px;min-height:0;flex:none}
 .promo-line{color:var(--warn)}
 nav a{font-size:11px}
+
+.ucell{display:flex;flex-direction:column;align-items:flex-end;line-height:1.3}
+.ucell span{font-size:12px;color:var(--sub)}
+.ucell b{font-size:14px;color:var(--ink);font-weight:600}
+.fab-pill{width:auto;height:54px;border-radius:30px;padding:0 20px;font-size:17px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15}
+.fab-sub{font-size:10px;font-weight:400;opacity:.85}
+details.card summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center}
+#sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:flex;align-items:flex-end}
+.sheet-card{background:var(--card);width:100%;max-width:720px;margin:0 auto;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:grid;gap:8px}
 </style>
 </head>
 <body>
@@ -106,6 +115,7 @@ nav a{font-size:11px}
   <a href="#/settings" data-nav="settings"><b>⚙️</b>設定</a>
 </nav>
 <div id="toast"></div>
+<div id="sheet" hidden></div>
 <div id="scan">
   <video id="scanVideo" playsinline muted></video>
   <div class="bar"><span>將條碼對準畫面</span><button id="scanClose">關閉</button></div>

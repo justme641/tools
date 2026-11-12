@@ -1,5 +1,5 @@
 // 離線快取：只快取本站程式檔，不處理任何外部網址
-const CACHE = 'shopping-v0.2.0';
+const CACHE = 'shopping-v0.3.0';
 const FILES = ['./', './index.html', './core.js', './app.js', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', e => {

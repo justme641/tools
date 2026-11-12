@@ -3,8 +3,9 @@
  */
 (function () {
   'use strict';
-  const VERSION = '0.2.0';
+  const VERSION = '0.3.0';
   const CHANGELOG = [
+    ['0.3.0', '2026-11-13', '商品編輯頁浮動查價鈕（長按換賣場）；賣場連結收合；編輯／刪除鈕移到頁首；單價改上下兩行；N件$X 單件價可留空；新增「其他賣場」與實際購買處'],
     ['0.2.0', '2026-11-12', '第二階段：特價規則與結帳引擎（含混搭）、特價頁；首頁分類篩選；商品頁區塊可調順序、左右滑動、浮動購物車鈕；歷史價格編輯多選刪除與單價；價格紀錄支援買N件優惠'],
     ['0.1.0', '2026-11-11', '第一階段：掃碼、商品庫、價格紀錄、賣場連結、BigGo 參考、購物車、購物紀錄、JSON 匯出入']
   ];
@@ -82,6 +83,10 @@
     if (!S.stores.length) {
       for (const d of Core.DEFAULT_STORES) await save('stores', { id: Core.uid(), ...d });
     }
+    if (!S.settings.otherSeeded) {
+      if (!S.stores.some(x => x.id === OTHER_ID)) await save('stores', { id: OTHER_ID, name: '其他賣場', kind: 'physical', template: '', rounding: 'line-round' });
+      await setSetting('otherSeeded', true);
+    }
     if (!S.settings.categories) await setSetting('categories', Core.DEFAULT_CATEGORIES.slice());
     if (!S.settings.backupDays) await setSetting('backupDays', 14);
     if (!S.settings.bigGoTemplate) await setSetting('bigGoTemplate', Core.BIGGO_TEMPLATE);
@@ -93,6 +98,11 @@
   const itemById = id => S.items.find(i => i.id === id);
   const storeById = id => S.stores.find(s => s.id === id);
   const storeName = id => (storeById(id) || { name: '（已刪除賣場）' }).name;
+  const OTHER_ID = 'store-other'; // 「其他賣場」：購買處不在清單時使用，可另填實際購買處
+  const placeName = p => storeName(p.storeId) + (p.place ? '（' + p.place + '）' : '');
+  const recStore = r => (r.storeName || storeName(r.storeId)) + (r.place ? '（' + r.place + '）' : '');
+  // 單價：上排單位量（100g）、下排金額（$65）
+  const unitCell = u => u ? '<div class="ucell"><span>' + esc(u.per) + '</span><b>' + fmt(u.value) + '</b></div>' : '-';
   const pricesOf = itemId => S.prices.filter(p => p.itemId === itemId);
   const byDateDesc = (a, b) => (b.date + (b.createdAt || 0)).localeCompare(a.date + (a.createdAt || 0));
   const readOnly = () => !!S.settings.readOnly;
@@ -216,7 +226,7 @@
     links: '到賣場查價', biggo: 'BigGo 歷史價（參考）', history: '我的價格歷史'
   };
   const DEFAULT_ORDER = ['price', 'promos', 'add', 'links', 'biggo', 'history'];
-  let reorderMode = false, historyEdit = false, lastItemId = null;
+  let reorderMode = false, historyEdit = false, lastItemId = null, linksOpen = false;
   const historySel = new Set();
   function sectionOrder() {
     const out = (S.settings.itemOrder || []).filter(k => SECTIONS[k]);
@@ -273,7 +283,8 @@
       (ids.length > 1 ? '<div class="sub" style="margin-top:6px">' + (pos + 1) + ' / ' + ids.length + ' · 左右滑動切換商品</div>' : '') +
       '</div>' +
       '<button class="nav-arrow" data-act="stepItem" data-d="1" aria-label="下一筆"' + (pos >= ids.length - 1 ? ' disabled' : '') + '>›</button></div>' +
-      '<div class="btns"><button class="small" data-act="reorder">' + (reorderMode ? '✔ 完成調整' : '↕ 調整區塊順序') + '</button></div>';
+      '<div class="btns"><button class="small" data-act="reorder">' + (reorderMode ? '✔ 完成調整' : '↕ 調整區塊順序') + '</button></div>' +
+      (ro ? '' : '<div class="btns"><a class="btn small" href="#/edit/' + esc(id) + '">✎ 編輯商品</a><button class="small danger" data-act="delItem" data-id="' + esc(id) + '">🗑 刪除商品</button></div>');
 
     // ---- 各區塊內容 ----
     const body = {};
@@ -285,13 +296,13 @@
       let b = '<div class="card"><table class="tbl"><tr><th>賣場</th><th class="r">每件價</th><th class="r">單價</th></tr>';
       storeIds.sort((a, c) => Core.effectivePrice(latest[a]) - Core.effectivePrice(latest[c])).forEach(sid => {
         const p = latest[sid], ep = Core.effectivePrice(p), u = Core.unitPrice(ep, it);
-        b += '<tr><td>' + esc(storeName(sid)) + (p.onSale ? '<span class="chip warn">特價</span>' : '') +
+        b += '<tr><td>' + esc(placeName(p)) + (p.onSale ? '<span class="chip warn">特價</span>' : '') +
           '<div class="sub">' + esc(p.date) + '</div></td><td class="r"><b>' + fmt(ep) + '</b>' +
-          (p.deal ? '<div class="sub">' + esc(dealText(p)) + '（單件 ' + fmt(p.price) + '）</div>' : '') + '</td>' +
-          '<td class="r sub">' + (u ? fmt(u.value) + '<br>' + esc(u.label) : '-') + '</td></tr>';
+          (p.deal ? '<div class="sub">' + esc(dealText(p)) + (p.noSingle ? '' : '（單件 ' + fmt(p.price) + '）') + '</div>' : '') + '</td>' +
+          '<td class="r sub">' + unitCell(u) + '</td></tr>';
       });
       b += '</table>' + (low ? '<div class="sub" style="margin-top:6px">歷史最低價：' + fmt(Core.effectivePrice(low)) + '（' +
-        esc(storeName(low.storeId)) + '，' + esc(low.date) + (low.deal ? '，' + esc(dealText(low)) : '') + '）</div>' : '') + '</div>';
+        esc(placeName(low)) + '，' + esc(low.date) + (low.deal ? '，' + esc(dealText(low)) : '') + '）</div>' : '') + '</div>';
       body.price = b;
     }
 
@@ -318,7 +329,8 @@
       body.add = '<form class="card" data-form="price" data-id="' + esc(id) + '">' +
         '<div class="grid2"><div><label>賣場</label><select name="storeId">' +
         S.stores.map(s => '<option value="' + esc(s.id) + '"' + (s.id === lastStore ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') +
-        '</select></div><div><label>單件價格（元）</label><input name="price" type="number" inputmode="decimal" step="any" min="0" required></div></div>' +
+        '</select></div><div><label>單件價格（元）<span class="sub" data-pricehint></span></label><input name="price" type="number" inputmode="decimal" step="any" min="0" required></div></div>' +
+        '<div data-otherwrap' + (lastStore === OTHER_ID ? '' : ' hidden') + '><label>實際購買處（備註，選填）</label><input name="place" placeholder="例如：某某超市、網拍名稱"></div>' +
         '<div class="grid2"><div><label>日期</label><input name="date" type="date" value="' + today + '" required></div>' +
         '<div><label>備註</label><input name="note" placeholder="例如：會員價"></div></div>' +
         '<label class="check"><input type="checkbox" name="onSale"> 這是特價價格</label>' + dealFieldsHtml() +
@@ -326,8 +338,9 @@
     }
 
     // 到賣場查價
-    let lb = '<div class="card"><div class="hint">開啟賣場商品頁（已綁定網址）或用商品名稱搜尋，看完價格再回來記錄。</div>';
+    let lb = '<details class="card" data-det="links"' + (linksOpen ? ' open' : '') + '><summary>展開賣場連結（' + S.stores.filter(x => x.id !== OTHER_ID).length + ' 家）</summary><div class="hint">開啟賣場商品頁（已綁定網址）或用商品名稱搜尋，看完價格再回來記錄。</div>';
     S.stores.forEach(s => {
+      if (s.id === OTHER_ID) return;
       const l = linkUrl(it, s);
       lb += '<div class="row" style="margin:6px 0"><div class="grow"><b>' + esc(s.name) + '</b><div class="sub">' +
         (l.bound ? '已綁定商品頁' : '名稱搜尋') + '</div></div>' +
@@ -335,7 +348,7 @@
         (ro ? '' : '<button class="small" data-act="bind" data-id="' + esc(it.id) + '" data-store="' + esc(s.id) + '">' + (l.bound ? '改網址' : '綁定') + '</button>') +
         '</div>';
     });
-    body.links = lb + '</div>';
+    body.links = lb + '</details>';
 
     // BigGo 參考
     const refs = S.refPrices.filter(r => r.itemId === id).sort((a, b) => b.date.localeCompare(a.date));
@@ -368,10 +381,10 @@
       ps.slice(0, 100).forEach(p => {
         const ep = Core.effectivePrice(p), u = Core.unitPrice(ep, it);
         hb += '<tr>' + (historyEdit ? '<td><input type="checkbox" data-hsel="' + esc(p.id) + '"' + (historySel.has(p.id) ? ' checked' : '') + '></td>' : '') +
-          '<td>' + esc(p.date) + '</td><td>' + esc(storeName(p.storeId)) + (p.onSale ? '<span class="chip warn">特價</span>' : '') +
+          '<td>' + esc(p.date) + '</td><td>' + esc(placeName(p)) + (p.onSale ? '<span class="chip warn">特價</span>' : '') +
           (p.deal ? '<div class="sub">' + esc(dealText(p)) + '</div>' : '') + (p.note ? '<div class="sub">' + esc(p.note) + '</div>' : '') + '</td>' +
-          '<td class="r">' + fmt(p.price) + (p.deal ? '<div class="sub">均 ' + fmt(ep) + '</div>' : '') + '</td>' +
-          '<td class="r sub">' + (u ? fmt(u.value) + '<br>' + esc(u.label) : '-') + '</td></tr>';
+          '<td class="r">' + (p.noSingle ? '—' : fmt(p.price)) + (p.deal ? '<div class="sub">均 ' + fmt(ep) + '</div>' : '') + '</td>' +
+          '<td class="r sub">' + unitCell(u) + '</td></tr>';
       });
       body.history = hb + '</table>' + (ps.length > 100 ? '<div class="hint">只顯示最近 100 筆。</div>' : '') + '</div>';
     }
@@ -389,7 +402,7 @@
       h += '<section class="sec"><div class="sec-h"><h2>' + SECTIONS[k] + '</h2><span class="sec-ctl">' + ctl + '</span></div>' + body[k] + '</section>';
     });
 
-    h += '<div class="btns">' + (ro ? '' : '<a class="btn" href="#/edit/' + esc(id) + '">編輯商品</a><button class="danger" data-act="delItem" data-id="' + esc(id) + '">刪除商品</button>') + '</div>';
+    h += '<div style="height:72px"></div>';
     if (!ro) {
       h += '<button class="fab" data-act="addCart" data-id="' + esc(id) + '" aria-label="加入購物車">🛒<span class="fab-plus">＋</span>' +
         (inCart ? '<span class="fab-badge">' + inCart + '</span>' : '') + '</button>';
@@ -420,7 +433,7 @@
       '<input id="photoFile" type="file" accept="image/*">' +
       (photo ? '<label class="check"><input type="checkbox" name="rmPhoto"> 移除照片</label>' : '') +
       '<label>備註</label><textarea name="note">' + esc(it.note) + '</textarea>' +
-      '<div class="btns"><button class="primary">儲存</button><a class="btn" href="' + (isNew ? '#/' : '#/item/' + esc(it.id)) + '">取消</a></div></form>';
+      '<div class="btns"><button class="primary">儲存</button><a class="btn" href="' + (isNew ? '#/' : '#/item/' + esc(it.id)) + '">取消</a></div></form>' + searchFabHtml();
   }
   let pendingPhoto = null;
   function resizeImage(file) {
@@ -474,7 +487,8 @@
     const mode = roundingMode();
     const missing = c.lines.filter(l => l.price === null || l.price === undefined || l.price === '' || !(Number(l.price) >= 0)).length;
     let h = '<h1>購物車</h1><label>結帳賣場</label><select id="cartStore"><option value="">請選擇賣場</option>' +
-      S.stores.map(s => '<option value="' + esc(s.id) + '"' + (s.id === c.storeId ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') + '</select>';
+      S.stores.map(s => '<option value="' + esc(s.id) + '"' + (s.id === c.storeId ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') + '</select>' +
+      (c.storeId === OTHER_ID ? '<label>實際購買處（備註，選填）</label><input id="cartPlace" value="' + esc(c.place || '') + '" placeholder="例如：某某超市">' : '');
     if (!c.lines.length) return h + '<div class="card sub" style="margin-top:12px">購物車是空的。到商品頁按右下角的購物車鈕加入。</div>';
 
     h += '<div style="margin-top:8px">';
@@ -547,7 +561,7 @@
     const rec = {
       id: Core.uid(), date, time: now.toISOString(), storeId: store.id, storeName: store.name,
       payMethod: $('#payMethod').value, rounding: mode, total: res.total, qtyCount: res.qtyCount,
-      rawTotal: res.rawSum, savings: res.savings,
+      rawTotal: res.rawSum, savings: res.savings, place: store.id === OTHER_ID ? (c.place || '') : '',
       threshold: res.threshold ? { label: label(res.threshold.ruleId), amount: res.threshold.amount } : null,
       lines: c.lines.map((l, i) => {
         const it = itemById(l.itemId) || {};
@@ -563,7 +577,7 @@
       for (const l of c.lines) {
         const last = latestPrice(l.itemId, store.id);
         if (!last || Number(last.price) !== Number(l.price)) {
-          await save('prices', { id: Core.uid(), itemId: l.itemId, storeId: store.id, price: Number(l.price), date, onSale: false, note: '購物車結帳', createdAt: Date.now() });
+          await save('prices', { id: Core.uid(), itemId: l.itemId, storeId: store.id, price: Number(l.price), date, onSale: false, note: '購物車結帳', createdAt: Date.now(), ...(store.id === OTHER_ID && c.place ? { place: c.place } : {}) });
         }
       }
     }
@@ -578,7 +592,7 @@
     let h = '<h1>購物紀錄</h1>';
     if (!list.length) return h + '<div class="card sub">還沒有購物紀錄。</div>';
     list.forEach(r => {
-      h += '<a class="row" href="#/record/' + esc(r.id) + '"><div class="grow"><b>' + esc(r.date) + ' · ' + esc(r.storeName || storeName(r.storeId)) +
+      h += '<a class="row" href="#/record/' + esc(r.id) + '"><div class="grow"><b>' + esc(r.date) + ' · ' + esc(recStore(r)) +
         '</b><div class="sub">' + (r.lines || []).length + ' 項 · ' + esc(r.payMethod || '') + '</div></div><div class="right"><b>' + fmt(r.total) + '</b></div></a>';
     });
     return h;
@@ -586,7 +600,7 @@
   function viewRecord(id) {
     const r = S.records.find(x => x.id === id);
     if (!r) return '<div class="card">找不到這筆紀錄。<div class="btns"><a class="btn" href="#/records">回紀錄</a></div></div>';
-    let h = '<h1>' + esc(r.date) + ' · ' + esc(r.storeName || storeName(r.storeId)) + '</h1><div class="card">' +
+    let h = '<h1>' + esc(r.date) + ' · ' + esc(recStore(r)) + '</h1><div class="card">' +
       '<table class="tbl"><tr><th>商品</th><th class="r">數量</th><th class="r">單價</th><th class="r">小計</th></tr>';
     (r.lines || []).forEach(l => {
       const exists = itemById(l.itemId);
@@ -921,6 +935,8 @@
 
   /* ---------- 事件 ---------- */
   document.addEventListener('click', async e => {
+    if (e.target.id === 'sheet') { closeSheet(); return; }
+    if (e.target.closest('[data-fabsearch]')) { if (fabLong) { fabLong = false; return; } openSearch(defaultSearchStore()); return; }
     const el = e.target.closest('[data-act]');
     if (!el) return;
     const act = el.dataset.act, id = el.dataset.id;
@@ -963,6 +979,8 @@
         try { await navigator.clipboard.writeText(link); toast('已複製連結'); } catch (err) { prompt('複製這個連結', link); }
       }
       else if (act === 'delRecord') { if (confirm('刪除這筆購物紀錄？')) { await remove('records', id); go('#/records'); } }
+      else if (act === 'openSearch') { openSearch(storeById(el.dataset.store)); closeSheet(); }
+      else if (act === 'closeSheet') closeSheet();
       else if (act === 'cat') { homeCat = el.dataset.v || ''; render(); }
       else if (act === 'stepItem') stepItem(Number(el.dataset.d));
       else if (act === 'reorder') { reorderMode = !reorderMode; render(); }
@@ -1020,8 +1038,6 @@
     try {
       if (kind === 'barcode') { handleCode(fd.get('code')); }
       else if (kind === 'price') {
-        if (fd.get('price') === '' || !(Number(fd.get('price')) >= 0)) { toast('請輸入價格'); return; }
-        const price = Number(fd.get('price'));
         const dk = fd.get('dealKind');
         let deal = null;
         if (dk) {
@@ -1030,8 +1046,16 @@
           if (err) { toast(err); return; }
           deal = Object.assign({ kind: dk }, params);
         }
+        const blank = String(fd.get('price') || '').trim() === '';
+        // 「N 件 $X」不一定知道單件價，單件價可留空，以組合價 ÷ 件數當每件價
+        if (blank && !(deal && dk === 'bundle')) { toast('請輸入單件價格（選「N 件 $X」時可留空）'); return; }
+        if (!blank && !(Number(fd.get('price')) >= 0)) { toast('請輸入正確的價格'); return; }
+        const price = blank ? deal.total / deal.n : Number(fd.get('price'));
         const rec = { id: Core.uid(), itemId: id, storeId: fd.get('storeId'), price, date: fd.get('date'), onSale: !!fd.get('onSale') || !!deal, note: String(fd.get('note') || '').trim(), createdAt: Date.now() };
         if (deal) rec.deal = deal;
+        if (blank) rec.noSingle = true;
+        const place = String(fd.get('place') || '').trim();
+        if (rec.storeId === OTHER_ID && place) rec.place = place;
         await save('prices', rec);
         await setSetting('lastStore', fd.get('storeId'));
         const it = itemById(id); if (it) { it.updatedAt = Date.now(); await save('items', it); }
@@ -1160,7 +1184,13 @@
         const f = t.closest('form');
         f.querySelectorAll('[data-deal]').forEach(e => { e.hidden = e.dataset.deal !== t.value; });
         f.querySelector('[data-dealsync]').hidden = !t.value;
+        const pi = f.querySelector('input[name=price]'); if (pi) pi.required = t.value !== 'bundle';
+        const ph = f.querySelector('[data-pricehint]'); if (ph) ph.textContent = t.value === 'bundle' ? '（不確定可留空）' : '';
       }
+      else if (t.matches && t.matches('form[data-form=price] select[name=storeId]')) {
+        const w = t.closest('form').querySelector('[data-otherwrap]'); if (w) w.hidden = t.value !== OTHER_ID;
+      }
+      else if (t.id === 'cartPlace') { const c = cart(); c.place = t.value; await setSetting('cart', c); }
       else if (t.matches && t.matches('[data-campsel]')) {
         t.closest('form').querySelector('[data-newcamp]').hidden = t.value !== '__new';
       }
@@ -1219,6 +1249,53 @@
     sx = null;
     if (Math.abs(dx) > 60 && Math.abs(dy) < 50 && Math.abs(dx) > Math.abs(dy) * 1.5) stepItem(dx < 0 ? 1 : -1);
   }, { passive: true });
+
+  /* ---------- 商品編輯頁：浮動查價鈕（點一下查預設賣場，長按選其他賣場） ---------- */
+  function searchStores() { return S.stores.filter(s => s.id !== OTHER_ID && s.template); }
+  function defaultSearchStore() {
+    const l = searchStores();
+    return l.find(s => s.name === '全聯') || l[0] || null;
+  }
+  function searchFabHtml() {
+    const s = defaultSearchStore();
+    if (!s) return '';
+    return '<div class="hint">右下角的查價鈕會用上面輸入的名稱（沒填名稱就用條碼）搜尋賣場；長按可換其他賣場。</div><div style="height:72px"></div>' +
+      '<button type="button" class="fab fab-pill" data-fabsearch aria-label="查價">🔍 ' + esc(s.name) + '<span class="fab-sub">長按換賣場</span></button>';
+  }
+  function openSearch(store) {
+    if (!store) return;
+    const nameEl = document.querySelector('form[data-form=item] [name=name]');
+    const bcEl = document.querySelector('form[data-form=item] [name=barcode]');
+    const kw = (nameEl && nameEl.value.trim()) || (bcEl && bcEl.value.trim()) || '';
+    if (!kw) { toast('請先輸入商品名稱或條碼，再查價'); return; }
+    const url = Core.searchUrl(store.template, kw);
+    if (!Core.isHttpUrl(url)) { toast(store.name + ' 的搜尋網址範本有誤，請到設定修改'); return; }
+    window.open(url, '_blank', 'noopener');
+  }
+  function showSearchSheet() {
+    const sh = $('#sheet');
+    sh.innerHTML = '<div class="sheet-card"><b>到哪個賣場查價？</b>' +
+      searchStores().map(s => '<button type="button" data-act="openSearch" data-store="' + esc(s.id) + '">' + esc(s.name) + '</button>').join('') +
+      '<button type="button" data-act="closeSheet">取消</button></div>';
+    sh.hidden = false;
+  }
+  function closeSheet() { const sh = $('#sheet'); if (sh) { sh.hidden = true; sh.innerHTML = ''; } }
+  let fabTimer = null, fabLong = false;
+  document.addEventListener('pointerdown', e => {
+    fabLong = false;
+    const b = e.target.closest && e.target.closest('[data-fabsearch]');
+    if (!b) return;
+    clearTimeout(fabTimer);
+    fabTimer = setTimeout(() => { fabLong = true; showSearchSheet(); if (navigator.vibrate) navigator.vibrate(30); }, 550);
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => document.addEventListener(ev, () => clearTimeout(fabTimer)));
+  document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('[data-fabsearch]')) e.preventDefault(); });
+  // 內容改變（換頁）時一併關閉選單
+  window.addEventListener('hashchange', closeSheet);
+  // 賣場連結收合區：記住展開狀態，重繪時不會自己收起來
+  document.addEventListener('toggle', e => {
+    if (e.target.dataset && e.target.dataset.det === 'links') linksOpen = e.target.open;
+  }, true);
 
   $('#scanClose').addEventListener('click', stopScan);
   window.addEventListener('hashchange', () => { stopScan(); render(); });
